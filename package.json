@@ -8,6 +8,13 @@
     "oxlint": "1.42.0",
     "turbo": "2.7.6"
   },
+  "scripts": {
+    "dev": "turbo run dev",
+    "types": "turbo run types",
+    "build": "turbo run build",
+    "test": "turbo run test",
+    "unused": "knip"
+  },
   "workspaces": {
     "packages": [
       "applications/*",
