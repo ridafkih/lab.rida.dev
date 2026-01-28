@@ -17,6 +17,8 @@
   --color-warning-foreground: #fafafa;
   --color-info: #3b82f6;
   --color-info-foreground: #fafafa;
+  --color-accent: #3b82f6;
+  --color-accent-foreground: #fafafa;
   --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
   --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1);
   --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1);
@@ -41,6 +43,8 @@
   --color-warning-foreground: #fafafa;
   --color-info: #3b82f6;
   --color-info-foreground: #fafafa;
+  --color-accent: #3b82f6;
+  --color-accent-foreground: #fafafa;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -63,5 +67,7 @@
     --color-warning-foreground: #fafafa;
     --color-info: #3b82f6;
     --color-info-foreground: #fafafa;
+    --color-accent: #3b82f6;
+    --color-accent-foreground: #fafafa;
   }
 }

@@ -3,47 +3,25 @@ import { cn } from "../utils/cn";
 import { Slot } from "../utils/slot";
 import { Spinner } from "./spinner";
 
-type ButtonVariant = "primary" | "secondary" | "ghost" | "destructive" | "link";
-type ButtonSize = "sm" | "md" | "lg";
+type ButtonVariant = "primary" | "primary-accent" | "secondary";
+
+const variantStyles: Record<ButtonVariant, string> = {
+  primary: "bg-primary text-primary-foreground hover:bg-primary/90",
+  "primary-accent": "bg-accent text-accent-foreground hover:bg-accent/90",
+  secondary: "bg-muted text-muted-foreground hover:bg-muted/70",
+};
 
 export type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
   variant?: ButtonVariant;
-  size?: ButtonSize;
   loading?: boolean;
   asChild?: boolean;
-  leftIcon?: ReactNode;
-  rightIcon?: ReactNode;
-};
-
-const variantStyles: Record<ButtonVariant, string> = {
-  primary: "bg-primary text-primary-foreground hover:opacity-90",
-  secondary: "bg-secondary text-secondary-foreground hover:opacity-80",
-  ghost: "hover:bg-muted",
-  destructive: "bg-destructive text-destructive-foreground hover:opacity-90",
-  link: "underline-offset-4 hover:underline text-primary",
-};
-
-const sizeStyles: Record<ButtonSize, string> = {
-  sm: "h-8 px-3 text-sm",
-  md: "h-10 px-4 text-sm",
-  lg: "h-12 px-6 text-base",
+  icon?: ReactNode;
 };
 
 export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
   (
-    {
-      className,
-      variant = "primary",
-      size = "md",
-      loading = false,
-      disabled,
-      asChild = false,
-      leftIcon,
-      rightIcon,
-      children,
-      ...props
-    },
-    ref
+    { className, variant = "primary", loading = false, disabled, asChild = false, icon, children, ...props },
+    ref,
   ) => {
     const Comp = asChild ? Slot : "button";
     const isDisabled = disabled || loading;
@@ -52,22 +30,21 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
       <Comp
         ref={ref}
         className={cn(
-          "inline-flex items-center justify-center gap-2 font-medium",
-          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
-          "disabled:pointer-events-none disabled:opacity-50",
+          "flex items-center justify-center gap-1 px-2 py-1 text-xs",
           variantStyles[variant],
-          variant !== "link" && sizeStyles[size],
-          className
+          "focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
+          "disabled:pointer-events-none disabled:opacity-50",
+          className,
         )}
         disabled={isDisabled}
         {...props}
       >
-        {loading ? <Spinner size="sm" /> : leftIcon}
+        {loading && <Spinner size="sm" />}
+        {!loading && icon}
         {children}
-        {!loading && rightIcon}
       </Comp>
     );
-  }
+  },
 );
 
 Button.displayName = "Button";
