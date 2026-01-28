@@ -89,13 +89,13 @@ export function SidebarProject({ name, icon, active, onClick }: SidebarProjectPr
         active ? "bg-muted" : "hover:bg-muted/50",
       )}
     >
-      {icon || <Box className="w-3 h-3 flex-shrink-0" />}
+      {icon || <Box className="w-3 h-3" />}
       <Copy as="span" size="xs" className="flex-1 truncate text-left">
         {name}
       </Copy>
       <ChevronRight
         className={cn(
-          "w-3 h-3 flex-shrink-0 opacity-0 group-hover:opacity-100",
+          "w-3 h-3 opacity-0 group-hover:opacity-100",
           active && "opacity-100",
         )}
       />

@@ -70,6 +70,82 @@ const exampleSidebarData = {
     { id: "3", name: "db", status: "running" as const },
     { id: "4", name: "redis", status: "stopped" as const },
   ],
+  logSources: [
+    {
+      id: "otel",
+      name: "OTel",
+      logs: [
+        {
+          id: "o1",
+          timestamp: "12:33:55",
+          level: "info" as const,
+          message: "trace_id=abc123 span=auth.validate",
+        },
+        {
+          id: "o2",
+          timestamp: "12:34:01",
+          level: "info" as const,
+          message: "trace_id=abc123 span=db.query duration=45ms",
+        },
+        {
+          id: "o3",
+          timestamp: "12:34:05",
+          level: "error" as const,
+          message: "trace_id=abc123 span=auth.middleware error=invalid_token",
+        },
+      ],
+    },
+    {
+      id: "browser",
+      name: "Browser",
+      logs: [
+        { id: "b1", timestamp: "12:34:01", level: "info" as const, message: "App mounted" },
+        {
+          id: "b2",
+          timestamp: "12:34:02",
+          level: "warn" as const,
+          message: "Deprecation warning: useEffect cleanup",
+        },
+        {
+          id: "b3",
+          timestamp: "12:34:05",
+          level: "error" as const,
+          message: "Failed to fetch /api/auth",
+        },
+      ],
+    },
+    {
+      id: "web",
+      name: "web",
+      logs: [
+        {
+          id: "w1",
+          timestamp: "12:34:00",
+          level: "info" as const,
+          message: "Server listening on :5173",
+        },
+        { id: "w2", timestamp: "12:34:03", level: "info" as const, message: "HMR connected" },
+      ],
+    },
+    {
+      id: "api",
+      name: "api",
+      logs: [
+        {
+          id: "a1",
+          timestamp: "12:33:58",
+          level: "info" as const,
+          message: "Connected to database",
+        },
+        {
+          id: "a2",
+          timestamp: "12:34:05",
+          level: "error" as const,
+          message: "Auth middleware error: invalid token",
+        },
+      ],
+    },
+  ],
 };
 
 export default function SessionPage() {
@@ -83,6 +159,7 @@ export default function SessionPage() {
         tasks={exampleSidebarData.tasks}
         links={exampleSidebarData.links}
         containers={exampleSidebarData.containers}
+        logSources={exampleSidebarData.logSources}
       />
     </div>
   );

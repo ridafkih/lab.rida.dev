@@ -1,9 +1,10 @@
 "use client";
 
+import { useState } from "react";
 import { cn } from "@lab/ui/utils/cn";
 import { Copy } from "@lab/ui/components/copy";
 import { Avatar } from "@lab/ui/components/avatar";
-import { useState } from "react";
+import { Dropdown, DropdownTrigger, DropdownMenu, DropdownItem } from "@lab/ui/components/dropdown";
 import { GitBranch, CheckCircle, Circle, ExternalLink, Container, ChevronDown } from "lucide-react";
 
 type PromptEngineer = {
@@ -39,6 +40,21 @@ type ContainerInfo = {
   status: ContainerStatus;
 };
 
+type LogLevel = "info" | "warn" | "error";
+
+type LogEntry = {
+  id: string;
+  timestamp: string;
+  level: LogLevel;
+  message: string;
+};
+
+type LogSource = {
+  id: string;
+  name: string;
+  logs: LogEntry[];
+};
+
 type SessionSidebarProps = {
   promptEngineers: PromptEngineer[];
   createdAt: string;
@@ -46,6 +62,7 @@ type SessionSidebarProps = {
   tasks: Task[];
   links: Link[];
   containers: ContainerInfo[];
+  logSources: LogSource[];
 };
 
 const containerStatusStyles: Record<ContainerStatus, string> = {
@@ -55,6 +72,12 @@ const containerStatusStyles: Record<ContainerStatus, string> = {
   error: "bg-destructive",
 };
 
+const logLevelStyles: Record<LogLevel, string> = {
+  info: "text-muted-foreground",
+  warn: "text-warning",
+  error: "text-destructive",
+};
+
 export function SessionSidebar({
   promptEngineers,
   createdAt,
@@ -62,9 +85,10 @@ export function SessionSidebar({
   tasks,
   links,
   containers,
+  logSources,
 }: SessionSidebarProps) {
   return (
-    <aside className="w-64 border-l border-border h-full flex flex-col">
+    <aside className="max-w-64 border-l border-border h-full flex flex-col">
       <div className="h-8 border-b border-border" />
       <div className="flex-1 overflow-y-auto">
         <Section title="Prompt Engineers">
@@ -182,15 +206,82 @@ export function SessionSidebar({
           )}
         </Section>
 
-        <Section title="Stream">
+        <div className="border-b border-border">
+          <Copy size="xs" muted className="px-2 py-1.5 block">
+            Stream
+          </Copy>
           <div className="aspect-video bg-muted flex items-center justify-center">
             <Copy size="xs" muted>
               No stream
             </Copy>
           </div>
-        </Section>
+        </div>
+
+        <LogsSection logSources={logSources} />
       </div>
     </aside>
+  );
+}
+
+type LogsSectionProps = {
+  logSources: LogSource[];
+};
+
+function LogsSection({ logSources }: LogsSectionProps) {
+  const [selectedSourceId, setSelectedSourceId] = useState(logSources[0]?.id);
+  const selectedSource = logSources.find((s) => s.id === selectedSourceId);
+
+  return (
+    <div className="flex flex-col flex-1 min-h-0">
+      <div className="border-b border-border flex items-center">
+        <Copy size="xs" muted className="px-2 py-1.5">
+          Logs
+        </Copy>
+        <span className="flex-1" />
+        <Dropdown>
+          <DropdownTrigger className="h-full px-2 py-1.5 text-xs flex items-center gap-1.5 hover:bg-muted/50">
+            <span className="grid text-left">
+              {logSources.map((source) => (
+                <span
+                  key={source.id}
+                  className={cn(
+                    "col-start-1 row-start-1",
+                    source.id === selectedSourceId ? "visible" : "invisible",
+                  )}
+                >
+                  {source.name}
+                </span>
+              ))}
+            </span>
+            <ChevronDown className="w-3 h-3 text-muted-foreground" />
+          </DropdownTrigger>
+          <DropdownMenu className="right-0 left-auto">
+            {logSources.map((source) => (
+              <DropdownItem
+                key={source.id}
+                onClick={() => setSelectedSourceId(source.id)}
+                className="text-xs py-1.5"
+              >
+                {source.name}
+              </DropdownItem>
+            ))}
+          </DropdownMenu>
+        </Dropdown>
+      </div>
+      <div className="flex-1 overflow-y-auto bg-muted/30 p-2 font-mono text-[10px] leading-relaxed">
+        {!selectedSource || selectedSource.logs.length === 0 ? (
+          <Copy size="xs" muted>
+            No logs
+          </Copy>
+        ) : (
+          selectedSource.logs.map((log) => (
+            <div key={log.id} className={cn("whitespace-pre-wrap", logLevelStyles[log.level])}>
+              <span className="text-muted-foreground">{log.timestamp}</span> {log.message}
+            </div>
+          ))
+        )}
+      </div>
+    </div>
   );
 }
 
@@ -201,7 +292,7 @@ type SectionProps = {
 
 function Section({ title, children }: SectionProps) {
   return (
-    <div className="px-3 py-2 border-b border-border">
+    <div className="px-2 py-2 border-b border-border">
       <Copy size="xs" muted className="mb-1.5 block">
         {title}
       </Copy>
