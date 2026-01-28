@@ -282,6 +282,8 @@ export default function SessionPage() {
         messages={exampleMessages}
         reviewFiles={reviewFiles}
         onDismissFile={handleDismissFile}
+        frameUrl="http://container-aa64a5d6--5173.a22f2acf.localhost:10002/"
+        streamUrl="http://container-aa64a5d6--5900.a22f2acf.localhost:10002/"
       />
       <SessionSidebar
         promptEngineers={exampleSidebarData.promptEngineers}

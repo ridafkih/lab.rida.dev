@@ -9,7 +9,7 @@ import { Check, Send } from "lucide-react";
 import type { ReviewableFile } from "@/types/review";
 import {
   DismissibleFileHeader,
-  DismissibleFileHeaderCheckbox,
+  DismissibleFileHeaderDismiss,
   DismissibleFileHeaderIcon,
   DismissibleFileHeaderLabel,
 } from "./dismissible-file-header";
@@ -98,9 +98,9 @@ export function ReviewPanel({ files, onDismiss }: ReviewPanelProps) {
           return (
             <div key={file.path} className="border-b border-border">
               <DismissibleFileHeader>
-                <DismissibleFileHeaderCheckbox onDismiss={() => onDismiss(file.path)} />
                 <DismissibleFileHeaderIcon changeType={file.changeType} />
                 <DismissibleFileHeaderLabel>{file.path}</DismissibleFileHeaderLabel>
+                <DismissibleFileHeaderDismiss onDismiss={() => onDismiss(file.path)} />
               </DismissibleFileHeader>
               <MultiFileDiff
                 oldFile={oldFile}

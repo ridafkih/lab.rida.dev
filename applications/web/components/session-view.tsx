@@ -31,6 +31,7 @@ import {
   ChatInputActionsStart,
   ChatInputActionsEnd,
 } from "./chat-input";
+import { UrlBar } from "./url-bar";
 
 type ToolCallStatus = "in_progress" | "completed";
 
@@ -52,9 +53,21 @@ type SessionViewProps = {
   messages: Message[];
   reviewFiles: ReviewableFile[];
   onDismissFile: (path: string) => void;
+  frameUrl?: string;
+  onFrameRefresh?: () => void;
+  streamUrl?: string;
+  onStreamRefresh?: () => void;
 };
 
-export function SessionView({ messages, reviewFiles, onDismissFile }: SessionViewProps) {
+export function SessionView({
+  messages,
+  reviewFiles,
+  onDismissFile,
+  frameUrl,
+  onFrameRefresh,
+  streamUrl,
+  onStreamRefresh,
+}: SessionViewProps) {
   return (
     <Tabs defaultValue="chat" className="flex-1 flex flex-col h-full min-w-0">
       <TabsList className="grid-cols-[1fr_1fr_1fr_1fr]">
@@ -128,11 +141,21 @@ export function SessionView({ messages, reviewFiles, onDismissFile }: SessionVie
         <ReviewPanel files={reviewFiles} onDismiss={onDismissFile} />
       </TabsContent>
       <TabsContent value="frame" className="flex-1 flex flex-col min-h-0">
+        {frameUrl && (
+          <div className="p-2 border-b border-border">
+            <UrlBar url={frameUrl} onRefresh={onFrameRefresh} />
+          </div>
+        )}
         <div className="flex-1 flex items-center justify-center">
           <Copy muted>Frame view coming soon</Copy>
         </div>
       </TabsContent>
       <TabsContent value="stream" className="flex-1 flex flex-col min-h-0">
+        {streamUrl && (
+          <div className="p-2 border-b border-border">
+            <UrlBar url={streamUrl} onRefresh={onStreamRefresh} />
+          </div>
+        )}
         <div className="flex-1 flex items-center justify-center">
           <Copy muted>Stream view coming soon</Copy>
         </div>

@@ -21,7 +21,7 @@ interface DismissibleFileHeaderProps {
   children: ReactNode;
 }
 
-interface DismissibleFileHeaderCheckboxProps {
+interface DismissibleFileHeaderDismissProps {
   onDismiss: () => void;
 }
 
@@ -41,13 +41,15 @@ export function DismissibleFileHeader({ children }: DismissibleFileHeaderProps) 
   );
 }
 
-export function DismissibleFileHeaderCheckbox({ onDismiss }: DismissibleFileHeaderCheckboxProps) {
+export function DismissibleFileHeaderDismiss({ onDismiss }: DismissibleFileHeaderDismissProps) {
   return (
     <button
       type="button"
       onClick={onDismiss}
-      className="size-3 shrink-0 border border-muted-foreground flex items-center justify-center"
-    />
+      className="px-1.5 py-0.5 text-xs text-muted-foreground hover:text-foreground hover:bg-muted"
+    >
+      Dismiss
+    </button>
   );
 }
 
