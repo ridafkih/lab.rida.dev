@@ -1,6 +1,6 @@
 import { cn } from "../utils/cn";
 
-type SpinnerSize = "sm" | "md" | "lg";
+type SpinnerSize = "xxs" | "xs" | "sm" | "md" | "lg";
 
 export type SpinnerProps = {
   size?: SpinnerSize;
@@ -8,6 +8,8 @@ export type SpinnerProps = {
 };
 
 const sizeStyles: Record<SpinnerSize, string> = {
+  xxs: "h-2 w-2 border",
+  xs: "h-3 w-3 border",
   sm: "h-4 w-4 border-2",
   md: "h-6 w-6 border-2",
   lg: "h-8 w-8 border-3",

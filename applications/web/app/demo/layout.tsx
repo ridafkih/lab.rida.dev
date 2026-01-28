@@ -62,72 +62,75 @@ export default function DemoLayout({ children }: { children: ReactNode }) {
     : null;
 
   return (
-    <div className="flex h-screen bg-background text-foreground">
-      <Sidebar>
-        <SidebarPanel>
-          <SidebarHeader>Projects</SidebarHeader>
-          <SidebarBody>
-            {projects.map((project) => (
-              <SidebarProject
-                key={project.id}
-                name={project.name}
-                active={projectId === project.id}
-                onClick={() =>
-                  router.push(projectId === project.id ? "/demo" : `/demo/${project.id}`)
-                }
-              />
-            ))}
-          </SidebarBody>
-          <SidebarFooter>
-            <div className="flex items-center gap-1.5">
-              <Avatar size="xs" fallback="JD" presence="online" />
-              <Copy as="span" size="xs" className="truncate">
-                john@acme.com
-              </Copy>
-            </div>
-          </SidebarFooter>
-        </SidebarPanel>
+    <div className="flex flex-col h-screen bg-background text-foreground">
+      <div className="flex flex-1 min-h-0">
+        <Sidebar>
+          <SidebarPanel>
+            <SidebarHeader>Projects</SidebarHeader>
+            <SidebarBody>
+              {projects.map((project) => (
+                <SidebarProject
+                  key={project.id}
+                  name={project.name}
+                  active={projectId === project.id}
+                  onClick={() =>
+                    router.push(projectId === project.id ? "/demo" : `/demo/${project.id}`)
+                  }
+                />
+              ))}
+            </SidebarBody>
+            <SidebarFooter>
+              <div className="flex items-center gap-1.5">
+                <Avatar size="xs" fallback="JD" presence="online" />
+                <Copy as="span" size="xs" className="truncate">
+                  john@acme.com
+                </Copy>
+              </div>
+            </SidebarFooter>
+          </SidebarPanel>
 
-        {projectId && (
-          <SidebarPanelGroup>
-            {projects
-              .filter((project) => project.id === projectId)
-              .map((project) => {
-                const projectSessions = sessions.filter((s) => s.projectId === project.id);
-                return (
-                  <SidebarPanel key={project.id}>
-                    <SidebarHeader
-                      action={
-                        <SidebarAction
-                          icon={<Cross1Icon />}
-                          label="Close"
-                          onClick={() => router.push("/demo")}
-                        />
-                      }
-                    >
-                      {project.name}
-                    </SidebarHeader>
-                    <SidebarBody>
-                      <SidebarNewSession />
-                      {projectSessions.map((session) => (
-                        <SidebarSession
-                          key={session.id}
-                          title={session.title}
-                          hasUnread={session.hasUnread}
-                          active={sessionId === session.id}
-                          onClick={() => router.push(`/demo/${project.id}/${session.id}`)}
-                          timestamp={session.timestamp}
-                        />
-                      ))}
-                    </SidebarBody>
-                  </SidebarPanel>
-                );
-              })}
-          </SidebarPanelGroup>
-        )}
-      </Sidebar>
+          {projectId && (
+            <SidebarPanelGroup>
+              {projects
+                .filter((project) => project.id === projectId)
+                .map((project) => {
+                  const projectSessions = sessions.filter((s) => s.projectId === project.id);
+                  return (
+                    <SidebarPanel key={project.id}>
+                      <SidebarHeader
+                        action={
+                          <SidebarAction
+                            icon={<Cross1Icon />}
+                            label="Close"
+                            onClick={() => router.push("/demo")}
+                          />
+                        }
+                      >
+                        {project.name}
+                      </SidebarHeader>
+                      <SidebarBody>
+                        <SidebarNewSession />
+                        {projectSessions.map((session) => (
+                          <SidebarSession
+                            key={session.id}
+                            title={session.title}
+                            hasUnread={session.hasUnread}
+                            active={sessionId === session.id}
+                            onClick={() => router.push(`/demo/${project.id}/${session.id}`)}
+                            timestamp={session.timestamp}
+                          />
+                        ))}
+                      </SidebarBody>
+                    </SidebarPanel>
+                  );
+                })}
+            </SidebarPanelGroup>
+          )}
+        </Sidebar>
 
-      <main className="flex-1 flex flex-col">{children}</main>
+        <main className="flex-1 flex flex-col">{children}</main>
+      </div>
+      <footer className="h-8 border-t border-border" />
     </div>
   );
 }

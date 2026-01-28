@@ -1,0 +1,131 @@
+"use client";
+
+import { type ReactNode } from "react";
+import { cn } from "@lab/ui/utils/cn";
+import { Copy } from "@lab/ui/components/copy";
+import { Button } from "@lab/ui/components/button";
+import { Spinner } from "@lab/ui/components/spinner";
+import {
+  ChevronDownIcon,
+  PaperPlaneIcon,
+  SpeakerLoudIcon,
+  PlusIcon,
+  LightningBoltIcon,
+  MixerHorizontalIcon,
+  CheckIcon,
+} from "@radix-ui/react-icons";
+
+type ToolCallStatus = "in_progress" | "completed";
+
+type ToolCall = {
+  id: string;
+  name: string;
+  status: ToolCallStatus;
+  duration?: string;
+};
+
+type Message = {
+  id: string;
+  role: "user" | "assistant";
+  content: string;
+  toolCalls?: ToolCall[];
+};
+
+type SessionViewProps = {
+  messages: Message[];
+};
+
+export function SessionView({ messages }: SessionViewProps) {
+  return (
+    <div className="flex flex-col h-full">
+      <div className="flex-1 overflow-y-auto">
+        {messages.flatMap((message) => {
+          const items: ReactNode[] = [<MessageBlock key={message.id} message={message} />];
+          if (message.toolCalls) {
+            for (const toolCall of message.toolCalls) {
+              items.push(<ToolCallBlock key={toolCall.id} toolCall={toolCall} />);
+            }
+          }
+          return items;
+        })}
+      </div>
+      <ChatInput />
+    </div>
+  );
+}
+
+type MessageBlockProps = {
+  message: Message;
+};
+
+function MessageBlock({ message }: MessageBlockProps) {
+  const isAssistant = message.role === "assistant";
+
+  return (
+    <div className={cn("border-b border-border px-4 py-3", isAssistant && "bg-muted")}>
+      <Copy size="sm">{message.content}</Copy>
+    </div>
+  );
+}
+
+type ToolCallBlockProps = {
+  toolCall: ToolCall;
+};
+
+function ToolCallBlock({ toolCall }: ToolCallBlockProps) {
+  const isCompleted = toolCall.status === "completed";
+
+  return (
+    <button
+      type="button"
+      className="flex items-center gap-2 w-full px-4 py-2 text-muted-foreground border-b border-border bg-muted/30 hover:bg-muted/50"
+    >
+      {isCompleted ? <CheckIcon className="w-3 h-3" /> : <Spinner size="xxs" />}
+      {toolCall.duration && (
+        <Copy as="span" size="xs" muted>
+          {toolCall.duration}
+        </Copy>
+      )}
+      <Copy as="span" size="xs">
+        {toolCall.name}
+      </Copy>
+      <span className="flex-1" />
+      <ChevronDownIcon className="w-3 h-3" />
+    </button>
+  );
+}
+
+function ChatInput() {
+  return (
+    <div className="border-t border-border">
+      <label className="flex flex-col bg-muted cursor-text">
+        <textarea
+          placeholder="Send a message..."
+          rows={3}
+          className="w-full px-3 py-2 text-sm bg-transparent border-none outline-none resize-none placeholder:text-muted-foreground"
+        />
+        <div className="flex items-center justify-between px-1.5 pb-1.5">
+          <div className="flex items-center gap-1">
+            <Button variant="secondary" icon={<PlusIcon className="w-3 h-3" />}>
+              Attach
+            </Button>
+            <Button variant="secondary" icon={<LightningBoltIcon className="w-3 h-3" />}>
+              Skills
+            </Button>
+            <Button variant="secondary" icon={<MixerHorizontalIcon className="w-3 h-3" />}>
+              Model
+            </Button>
+          </div>
+          <div className="flex items-center gap-1">
+            <Button variant="secondary" icon={<SpeakerLoudIcon className="w-3 h-3" />}>
+              Voice
+            </Button>
+            <Button variant="primary" icon={<PaperPlaneIcon className="w-3 h-3" />}>
+              Send
+            </Button>
+          </div>
+        </div>
+      </label>
+    </div>
+  );
+}
