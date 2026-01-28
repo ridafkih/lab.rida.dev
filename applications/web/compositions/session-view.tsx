@@ -6,7 +6,19 @@ import { Copy } from "@lab/ui/components/copy";
 import { Button } from "@lab/ui/components/button";
 import { Spinner } from "@lab/ui/components/spinner";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@lab/ui/components/tabs";
-import { ChevronDown, Send, Volume2, Plus, Zap, SlidersHorizontal, Check } from "lucide-react";
+import {
+  ChevronDown,
+  Send,
+  Volume2,
+  Plus,
+  Zap,
+  SlidersHorizontal,
+  Check,
+  MessageSquare,
+  FileSearch,
+  Frame,
+  Radio,
+} from "lucide-react";
 
 type ToolCallStatus = "in_progress" | "completed";
 
@@ -31,9 +43,23 @@ type SessionViewProps = {
 export function SessionView({ messages }: SessionViewProps) {
   return (
     <Tabs defaultValue="chat" className="flex-1 flex flex-col h-full min-w-0">
-      <TabsList>
-        <TabsTrigger value="chat">Chat</TabsTrigger>
-        <TabsTrigger value="review">Review</TabsTrigger>
+      <TabsList className="grid-cols-[1fr_1fr_1fr_1fr]">
+        <TabsTrigger value="chat">
+          <MessageSquare className="w-3 h-3" />
+          Chat
+        </TabsTrigger>
+        <TabsTrigger value="review">
+          <FileSearch className="w-3 h-3" />
+          Review
+        </TabsTrigger>
+        <TabsTrigger value="frame">
+          <Frame className="w-3 h-3" />
+          Frame
+        </TabsTrigger>
+        <TabsTrigger value="stream">
+          <Radio className="w-3 h-3" />
+          Stream
+        </TabsTrigger>
       </TabsList>
       <TabsContent value="chat" className="flex-1 flex flex-col min-h-0">
         <div className="flex-1 overflow-y-auto">
@@ -52,6 +78,16 @@ export function SessionView({ messages }: SessionViewProps) {
       <TabsContent value="review" className="flex-1 flex flex-col min-h-0">
         <div className="flex-1 flex items-center justify-center">
           <Copy muted>Review content coming soon</Copy>
+        </div>
+      </TabsContent>
+      <TabsContent value="frame" className="flex-1 flex flex-col min-h-0">
+        <div className="flex-1 flex items-center justify-center">
+          <Copy muted>Frame view coming soon</Copy>
+        </div>
+      </TabsContent>
+      <TabsContent value="stream" className="flex-1 flex flex-col min-h-0">
+        <div className="flex-1 flex items-center justify-center">
+          <Copy muted>Stream view coming soon</Copy>
         </div>
       </TabsContent>
     </Tabs>

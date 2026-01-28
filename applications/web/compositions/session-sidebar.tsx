@@ -3,7 +3,8 @@
 import { cn } from "@lab/ui/utils/cn";
 import { Copy } from "@lab/ui/components/copy";
 import { Avatar } from "@lab/ui/components/avatar";
-import { GitBranch, CheckCircle, Circle } from "lucide-react";
+import { useState } from "react";
+import { GitBranch, CheckCircle, Circle, ExternalLink, Container, ChevronDown } from "lucide-react";
 
 type PromptEngineer = {
   id: string;
@@ -24,11 +25,34 @@ type Task = {
   completed: boolean;
 };
 
+type Link = {
+  id: string;
+  title: string;
+  url: string;
+};
+
+type ContainerStatus = "running" | "stopped" | "starting" | "error";
+
+type ContainerInfo = {
+  id: string;
+  name: string;
+  status: ContainerStatus;
+};
+
 type SessionSidebarProps = {
   promptEngineers: PromptEngineer[];
   createdAt: string;
   branches: Branch[];
   tasks: Task[];
+  links: Link[];
+  containers: ContainerInfo[];
+};
+
+const containerStatusStyles: Record<ContainerStatus, string> = {
+  running: "bg-success",
+  stopped: "bg-muted-foreground",
+  starting: "bg-warning animate-pulse",
+  error: "bg-destructive",
 };
 
 export function SessionSidebar({
@@ -36,6 +60,8 @@ export function SessionSidebar({
   createdAt,
   branches,
   tasks,
+  links,
+  containers,
 }: SessionSidebarProps) {
   return (
     <aside className="w-64 border-l border-border h-full flex flex-col">
@@ -93,6 +119,20 @@ export function SessionSidebar({
           )}
         </Section>
 
+        <Section title="Containers">
+          <div className="flex flex-col gap-1">
+            {containers.map((container) => (
+              <div key={container.id} className="flex items-center gap-1.5">
+                <Container className="w-3 h-3 text-muted-foreground" />
+                <Copy size="xs" className="flex-1 truncate">
+                  {container.name}
+                </Copy>
+                <span className={cn("w-1.5 h-1.5", containerStatusStyles[container.status])} />
+              </div>
+            ))}
+          </div>
+        </Section>
+
         <Section title="Tasks">
           {tasks.length === 0 ? (
             <Copy size="xs" muted>
@@ -117,6 +157,37 @@ export function SessionSidebar({
               ))}
             </div>
           )}
+        </Section>
+
+        <Section title="Links">
+          {links.length === 0 ? (
+            <Copy size="xs" muted>
+              No links yet
+            </Copy>
+          ) : (
+            <div className="flex flex-col gap-1">
+              {links.map((link) => (
+                <a
+                  key={link.id}
+                  href={link.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-1.5 text-xs text-accent hover:underline"
+                >
+                  <ExternalLink className="w-3 h-3" />
+                  {link.title}
+                </a>
+              ))}
+            </div>
+          )}
+        </Section>
+
+        <Section title="Stream">
+          <div className="aspect-video bg-muted flex items-center justify-center">
+            <Copy size="xs" muted>
+              No stream
+            </Copy>
+          </div>
         </Section>
       </div>
     </aside>

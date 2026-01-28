@@ -85,7 +85,7 @@ export function TabsTrigger({
       aria-selected={isSelected}
       tabIndex={isSelected ? 0 : -1}
       className={cn(
-        "inline-flex items-center justify-center px-3 py-1 text-xs",
+        "inline-flex items-center justify-center gap-1.5 px-3 py-1 text-xs",
         "focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
         "disabled:pointer-events-none disabled:opacity-50",
         isSelected ? "bg-background text-foreground" : "bg-muted text-muted-foreground hover:bg-muted/70",

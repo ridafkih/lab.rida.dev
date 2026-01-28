@@ -52,6 +52,24 @@ const exampleSidebarData = {
     { id: "3", title: "Test redirect behavior", completed: false },
     { id: "4", title: "Update documentation", completed: false },
   ],
+  links: [
+    {
+      id: "1",
+      title: "Dev Server",
+      url: "http://container-aa64a5d6--5173.a22f2acf.localhost:10002/",
+    },
+    {
+      id: "2",
+      title: "Storybook",
+      url: "http://container-aa64a5d6--6006.a22f2acf.localhost:10002/",
+    },
+  ],
+  containers: [
+    { id: "1", name: "web", status: "running" as const },
+    { id: "2", name: "api", status: "running" as const },
+    { id: "3", name: "db", status: "running" as const },
+    { id: "4", name: "redis", status: "stopped" as const },
+  ],
 };
 
 export default function SessionPage() {
@@ -63,6 +81,8 @@ export default function SessionPage() {
         createdAt={exampleSidebarData.createdAt}
         branches={exampleSidebarData.branches}
         tasks={exampleSidebarData.tasks}
+        links={exampleSidebarData.links}
+        containers={exampleSidebarData.containers}
       />
     </div>
   );
