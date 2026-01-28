@@ -118,7 +118,7 @@ export function ReviewPanel({ files, onDismiss }: ReviewPanelProps) {
                   unsafeCSS: `
                     * { user-select: none; }
                     [data-line] { position: relative; }
-                    [data-column-number] { position: static; }
+                    [data-column-number] { position: static; cursor: crosshair; }
                     [data-column-number]::after {
                       content: "";
                       position: absolute;

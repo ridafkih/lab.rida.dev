@@ -9,9 +9,7 @@ const FOCUSABLE_SELECTOR = [
   "[tabindex]:not([tabindex='-1'])",
 ].join(", ");
 
-export function useFocusTrap<T extends HTMLElement>(
-  enabled: boolean = true
-): RefObject<T | null> {
+export function useFocusTrap<T extends HTMLElement>(enabled: boolean = true): RefObject<T | null> {
   const containerRef = useRef<T>(null);
   const previousActiveElement = useRef<HTMLElement | null>(null);
 

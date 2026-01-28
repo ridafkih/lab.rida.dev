@@ -3,12 +3,13 @@ import { cn } from "../utils/cn";
 import { Slot } from "../utils/slot";
 import { Spinner } from "./spinner";
 
-type ButtonVariant = "primary" | "primary-accent" | "secondary";
+type ButtonVariant = "primary" | "primary-accent" | "secondary" | "outline";
 
 const variantStyles: Record<ButtonVariant, string> = {
   primary: "bg-primary text-primary-foreground hover:bg-primary/90",
   "primary-accent": "bg-accent text-accent-foreground hover:bg-accent/90",
   secondary: "bg-muted text-muted-foreground hover:bg-muted/70",
+  outline: "bg-muted border border-border text-foreground hover:bg-muted/70",
 };
 
 export type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
@@ -20,7 +21,16 @@ export type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
 
 export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
   (
-    { className, variant = "primary", loading = false, disabled, asChild = false, icon, children, ...props },
+    {
+      className,
+      variant = "primary",
+      loading = false,
+      disabled,
+      asChild = false,
+      icon,
+      children,
+      ...props
+    },
     ref,
   ) => {
     const Comp = asChild ? Slot : "button";
@@ -30,7 +40,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
       <Comp
         ref={ref}
         className={cn(
-          "flex items-center justify-center gap-1 px-2 py-1 text-xs",
+          "flex items-center justify-center gap-1 px-2 py-1.5 text-xs",
           variantStyles[variant],
           "focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
           "disabled:pointer-events-none disabled:opacity-50",

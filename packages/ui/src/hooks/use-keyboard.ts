@@ -13,7 +13,7 @@ export function useKeyboard(keyMap: KeyMap, enabled: boolean = true) {
         handler(event);
       }
     },
-    [keyMap]
+    [keyMap],
   );
 
   useEffect(() => {

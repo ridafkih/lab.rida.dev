@@ -19,10 +19,7 @@ function isFunction(value: unknown): value is (...args: unknown[]) => unknown {
   return typeof value === "function";
 }
 
-function mergeProps(
-  slotProps: Record<string, unknown>,
-  childProps: Record<string, unknown>
-) {
+function mergeProps(slotProps: Record<string, unknown>, childProps: Record<string, unknown>) {
   const merged: Record<string, unknown> = { ...slotProps };
 
   for (const key in childProps) {

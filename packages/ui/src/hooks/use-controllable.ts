@@ -27,7 +27,7 @@ export function useControllable<T>({
       }
       onChangeRef.current?.(nextValue);
     },
-    [isControlled]
+    [isControlled],
   );
 
   return [value, setValue];

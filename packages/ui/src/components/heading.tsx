@@ -28,13 +28,7 @@ const defaultSizeForLevel: Record<HeadingLevel, keyof typeof sizeStyles> = {
   h6: "base",
 };
 
-export function Heading({
-  as,
-  size,
-  className,
-  children,
-  ...props
-}: HeadingProps) {
+export function Heading({ as, size, className, children, ...props }: HeadingProps) {
   const Component: ElementType = as || "h2";
   const level = (as || "h2") satisfies HeadingLevel;
   const resolvedSize = size || defaultSizeForLevel[level];
@@ -44,7 +38,7 @@ export function Heading({
       className={cn(
         "font-sans font-semibold text-foreground tracking-tight",
         sizeStyles[resolvedSize],
-        className
+        className,
       )}
       {...props}
     >

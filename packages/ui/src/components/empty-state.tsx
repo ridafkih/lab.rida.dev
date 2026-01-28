@@ -11,26 +11,19 @@ export type EmptyStateProps = {
   className?: string;
 };
 
-export function EmptyState({
-  icon,
-  title,
-  description,
-  action,
-  className,
-}: EmptyStateProps) {
+export function EmptyState({ icon, title, description, action, className }: EmptyStateProps) {
   return (
     <div
-      className={cn(
-        "flex flex-col items-center justify-center py-12 px-4 text-center",
-        className
-      )}
+      className={cn("flex flex-col items-center justify-center py-12 px-4 text-center", className)}
     >
-      {icon && (
-        <span className="mb-4 text-muted-foreground">{icon}</span>
-      )}
-      <Heading as="h3" size="lg">{title}</Heading>
+      {icon && <span className="mb-4 text-muted-foreground">{icon}</span>}
+      <Heading as="h3" size="lg">
+        {title}
+      </Heading>
       {description && (
-        <Copy size="sm" muted className="mt-1 max-w-sm">{description}</Copy>
+        <Copy size="sm" muted className="mt-1 max-w-sm">
+          {description}
+        </Copy>
       )}
       {action && <div className="mt-4">{action}</div>}
     </div>

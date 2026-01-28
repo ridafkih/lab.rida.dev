@@ -58,7 +58,10 @@ export type TabsListProps = {
 
 export function TabsList({ children, className }: TabsListProps) {
   return (
-    <div role="tablist" className={cn("grid grid-cols-[1fr_1fr] h-8 border-b border-border", className)}>
+    <div
+      role="tablist"
+      className={cn("grid grid-cols-[1fr_1fr] h-8 border-b border-border", className)}
+    >
       {children}
     </div>
   );
@@ -68,13 +71,7 @@ export type TabsTriggerProps = ButtonHTMLAttributes<HTMLButtonElement> & {
   value: string;
 };
 
-export function TabsTrigger({
-  value,
-  className,
-  children,
-  disabled,
-  ...props
-}: TabsTriggerProps) {
+export function TabsTrigger({ value, className, children, disabled, ...props }: TabsTriggerProps) {
   const { value: selectedValue, setValue } = useTabs();
   const isSelected = value === selectedValue;
 
@@ -88,7 +85,9 @@ export function TabsTrigger({
         "inline-flex items-center justify-center gap-1.5 px-3 py-1 text-xs",
         "focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
         "disabled:pointer-events-none disabled:opacity-50",
-        isSelected ? "bg-background text-foreground" : "bg-muted text-muted-foreground hover:bg-muted/70",
+        isSelected
+          ? "bg-background text-foreground"
+          : "bg-muted text-muted-foreground hover:bg-muted/70",
         className,
       )}
       onClick={() => setValue(value)}
@@ -107,12 +106,7 @@ export type TabsContentProps = {
   lazy?: boolean;
 };
 
-export function TabsContent({
-  value,
-  children,
-  className,
-  lazy = false,
-}: TabsContentProps) {
+export function TabsContent({ value, children, className, lazy = false }: TabsContentProps) {
   const { value: selectedValue } = useTabs();
   const [hasRendered, setHasRendered] = useState(false);
   const isSelected = value === selectedValue;

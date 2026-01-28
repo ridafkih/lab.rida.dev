@@ -52,7 +52,12 @@ export type DropdownTriggerProps = ButtonHTMLAttributes<HTMLButtonElement> & {
   asChild?: boolean;
 };
 
-export function DropdownTrigger({ className, children, asChild = false, ...props }: DropdownTriggerProps) {
+export function DropdownTrigger({
+  className,
+  children,
+  asChild = false,
+  ...props
+}: DropdownTriggerProps) {
   const { open, setOpen, setActiveIndex } = useDropdown();
 
   const handleKeyDown = (e: KeyboardEvent<HTMLButtonElement>) => {
@@ -121,8 +126,8 @@ export function DropdownMenu({ children, className }: DropdownMenuProps) {
       ref={menuRef}
       role="menu"
       className={cn(
-        "absolute left-0 top-full z-50 mt-1 min-w-[8rem] bg-background border border-border shadow-md py-1",
-        className
+        "absolute left-0 top-full z-50 min-w-[8rem] bg-background border border-border shadow-xs",
+        className,
       )}
       onKeyDown={handleKeyDown}
     >
@@ -143,10 +148,10 @@ export function DropdownItem({ className, icon, children, ...props }: DropdownIt
       type="button"
       role="menuitem"
       className={cn(
-        "flex w-full items-center gap-2 px-3 py-2 text-sm text-left",
+        "flex w-full items-center gap-1.5 px-2 py-1.5 text-xs text-left",
         "hover:bg-muted focus:bg-muted focus:outline-none",
         "disabled:pointer-events-none disabled:opacity-50",
-        className
+        className,
       )}
       onClick={(e) => {
         props.onClick?.(e);
@@ -154,17 +159,12 @@ export function DropdownItem({ className, icon, children, ...props }: DropdownIt
       }}
       {...props}
     >
-      {icon && <span className="h-4 w-4">{icon}</span>}
+      {icon && <span className="size-3 [&>svg]:size-3">{icon}</span>}
       {children}
     </button>
   );
 }
 
 export function DropdownSeparator({ className }: { className?: string }) {
-  return (
-    <div
-      role="separator"
-      className={cn("my-1 h-px bg-border", className)}
-    />
-  );
+  return <div role="separator" className={cn("h-px bg-border", className)} />;
 }

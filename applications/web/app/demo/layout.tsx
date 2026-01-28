@@ -15,7 +15,8 @@ import {
 } from "@/components/sidebar";
 import { Avatar } from "@lab/ui/components/avatar";
 import { Copy } from "@lab/ui/components/copy";
-import { X } from "lucide-react";
+import { X, Settings, ChevronDown, Users, FolderKanban } from "lucide-react";
+import { Dropdown, DropdownTrigger, DropdownMenu, DropdownItem } from "@lab/ui/components/dropdown";
 import type { ReactNode } from "react";
 
 type Project = {
@@ -67,7 +68,23 @@ export default function DemoLayout({ children }: { children: ReactNode }) {
       <div className="flex flex-1 min-h-0">
         <Sidebar>
           <SidebarPanel>
-            <SidebarHeader>Projects</SidebarHeader>
+            <div className="h-8 border-b border-border">
+              <Dropdown className="w-full h-full">
+                <DropdownTrigger className="flex items-center gap-1 w-full h-full px-2 text-xs text-muted-foreground hover:bg-muted/50">
+                  <span className="flex-1 text-left truncate">Acme Inc</span>
+                  <ChevronDown className="size-3" />
+                </DropdownTrigger>
+                <DropdownMenu>
+                  <DropdownItem icon={<Users className="size-3" />}>People</DropdownItem>
+                  <DropdownItem
+                    icon={<FolderKanban className="size-3" />}
+                    onClick={() => router.push("/demo/projects/new")}
+                  >
+                    New Project
+                  </DropdownItem>
+                </DropdownMenu>
+              </Dropdown>
+            </div>
             <SidebarBody>
               {projects.map((project) => (
                 <SidebarProject
@@ -83,9 +100,10 @@ export default function DemoLayout({ children }: { children: ReactNode }) {
             <SidebarFooter>
               <div className="flex items-center gap-1.5">
                 <Avatar size="xs" fallback="JD" presence="online" />
-                <Copy as="span" size="xs" className="truncate">
+                <Copy as="span" size="xs" className="flex-1 truncate">
                   john@acme.com
                 </Copy>
+                <SidebarAction icon={<Settings />} label="Settings" />
               </div>
             </SidebarFooter>
           </SidebarPanel>

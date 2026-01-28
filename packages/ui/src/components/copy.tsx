@@ -32,7 +32,7 @@ export function Copy({
         "font-sans",
         sizeStyles[size],
         muted ? "text-muted-foreground" : "text-foreground",
-        className
+        className,
       )}
       {...props}
     >

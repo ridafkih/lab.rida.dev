@@ -57,7 +57,7 @@ export function Avatar({
         <span
           className={cn(
             "flex h-full w-full items-center justify-center bg-muted text-muted-foreground font-medium",
-            className
+            className,
           )}
         >
           {fallback ? getInitials(fallback) : "?"}
@@ -76,7 +76,7 @@ export function Avatar({
           className={cn(
             "absolute block rounded-full ring-2 ring-background",
             presenceStyles[presence],
-            presenceSizeStyles[size]
+            presenceSizeStyles[size],
           )}
         />
       )}
@@ -91,12 +91,7 @@ export type AvatarGroupProps = {
   className?: string;
 };
 
-export function AvatarGroup({
-  children,
-  max = 4,
-  size = "md",
-  className,
-}: AvatarGroupProps) {
+export function AvatarGroup({ children, max = 4, size = "md", className }: AvatarGroupProps) {
   const avatars = Array.isArray(children) ? children : [children];
   const visible = avatars.slice(0, max);
   const remaining = avatars.length - max;
@@ -104,10 +99,7 @@ export function AvatarGroup({
   return (
     <div className={cn("flex -space-x-2", className)}>
       {visible.map((avatar, i) => (
-        <span
-          key={i}
-          className="ring-2 ring-background inline-block"
-        >
+        <span key={i} className="ring-2 ring-background inline-block">
           {avatar}
         </span>
       ))}
@@ -115,7 +107,7 @@ export function AvatarGroup({
         <span
           className={cn(
             "flex items-center justify-center bg-muted text-muted-foreground font-medium ring-2 ring-background",
-            sizeStyles[size]
+            sizeStyles[size],
           )}
         >
           +{remaining}
