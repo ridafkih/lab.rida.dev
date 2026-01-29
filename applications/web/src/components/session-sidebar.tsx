@@ -82,6 +82,14 @@ export function SessionSidebar({
   reviewFiles,
   onDismissFile,
 }: SessionSidebarProps) {
+  const allPortUrls = containers.flatMap((container) =>
+    container.urls.map((urlInfo) => ({
+      key: `${container.id}-${urlInfo.port}`,
+      url: urlInfo.url,
+      label: `${container.name}:${urlInfo.port}`,
+    })),
+  );
+
   return (
     <aside className="min-w-64 max-w-64 border-l border-border h-full flex flex-col">
       <div className="h-8 border-b border-border" />
@@ -169,28 +177,11 @@ export function SessionSidebar({
         <SidebarSection title="Containers">
           <div className="flex flex-col gap-2">
             {containers.map((container) => (
-              <div key={container.id} className="flex flex-col gap-1">
-                <ContainerStatusItem>
-                  <ContainerStatusItemIcon />
-                  <ContainerStatusItemName>{container.name}</ContainerStatusItemName>
-                  <ContainerStatusItemDot status={container.status} />
-                </ContainerStatusItem>
-                {container.urls.length > 0 && (
-                  <div className="flex flex-col gap-0.5 pl-5">
-                    {container.urls.map((urlInfo) => (
-                      <a
-                        key={urlInfo.port}
-                        href={urlInfo.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-xs text-accent hover:underline truncate"
-                      >
-                        :{urlInfo.port}
-                      </a>
-                    ))}
-                  </div>
-                )}
-              </div>
+              <ContainerStatusItem key={container.id}>
+                <ContainerStatusItemIcon />
+                <ContainerStatusItemName>{container.name}</ContainerStatusItemName>
+                <ContainerStatusItemDot status={container.status} />
+              </ContainerStatusItem>
             ))}
           </div>
         </SidebarSection>
@@ -214,12 +205,17 @@ export function SessionSidebar({
         </SidebarSection>
 
         <SidebarSection title="Links">
-          {links.length === 0 ? (
+          {links.length === 0 && allPortUrls.length === 0 ? (
             <Copy size="xs" muted>
               No links yet
             </Copy>
           ) : (
             <div className="flex flex-col gap-1">
+              {allPortUrls.map((portUrl) => (
+                <IconLabelItemLink key={portUrl.key} icon={ExternalLink} href={portUrl.url}>
+                  {portUrl.label}
+                </IconLabelItemLink>
+              ))}
               {links.map((link) => (
                 <IconLabelItemLink key={link.id} icon={ExternalLink} href={link.url}>
                   {link.title}
