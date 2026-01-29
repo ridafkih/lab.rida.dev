@@ -16,8 +16,6 @@ interface ContainerStatusItemProps {
   children: ReactNode;
 }
 
-interface ContainerStatusItemIconProps {}
-
 interface ContainerStatusItemNameProps {
   children: ReactNode;
 }
@@ -30,7 +28,7 @@ export function ContainerStatusItem({ children }: ContainerStatusItemProps) {
   return <div className="flex items-center gap-1.5">{children}</div>;
 }
 
-export function ContainerStatusItemIcon({}: ContainerStatusItemIconProps) {
+export function ContainerStatusItemIcon() {
   return <Container className="size-3 text-muted-foreground" />;
 }
 

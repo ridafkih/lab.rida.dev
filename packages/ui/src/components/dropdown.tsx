@@ -126,7 +126,7 @@ export function DropdownMenu({ children, className }: DropdownMenuProps) {
       ref={menuRef}
       role="menu"
       className={cn(
-        "absolute left-0 top-full z-50 min-w-[8rem] bg-background border border-border shadow-xs",
+        "absolute left-0 top-full z-50 min-w-32 bg-background border border-border shadow-xs",
         className,
       )}
       onKeyDown={handleKeyDown}
