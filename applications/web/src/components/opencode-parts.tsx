@@ -3,17 +3,17 @@
 import type { ReactNode } from "react";
 import type { MessageState } from "@/lib/opencode/state/types";
 import { MessageBlock } from "./message-block";
-import { OpencodePartReasoning } from "./opencode/opencode-part-reasoning";
-import { OpencodePartTool } from "./opencode/opencode-part-tool";
-import { OpencodePartFile } from "./opencode/opencode-part-file";
-import { OpencodePartStepStart } from "./opencode/opencode-part-step-start";
-import { OpencodePartStepFinish } from "./opencode/opencode-part-step-finish";
-import { OpencodePartAgent } from "./opencode/opencode-part-agent";
-import { OpencodePartSubtask } from "./opencode/opencode-part-subtask";
-import { OpencodePartRetry } from "./opencode/opencode-part-retry";
-import { OpencodePartSnapshot } from "./opencode/opencode-part-snapshot";
-import { OpencodePartPatch } from "./opencode/opencode-part-patch";
-import { OpencodePartCompaction } from "./opencode/opencode-part-compaction";
+import { OpencodePartReasoning } from "./opencode-part-reasoning";
+import { OpencodePartTool } from "./opencode-part-tool";
+import { OpencodePartFile } from "./opencode-part-file";
+import { OpencodePartStepStart } from "./opencode-part-step-start";
+import { OpencodePartStepFinish } from "./opencode-part-step-finish";
+import { OpencodePartAgent } from "./opencode-part-agent";
+import { OpencodePartSubtask } from "./opencode-part-subtask";
+import { OpencodePartRetry } from "./opencode-part-retry";
+import { OpencodePartSnapshot } from "./opencode-part-snapshot";
+import { OpencodePartPatch } from "./opencode-part-patch";
+import { OpencodePartCompaction } from "./opencode-part-compaction";
 import {
   isTextPart,
   isReasoningPart,

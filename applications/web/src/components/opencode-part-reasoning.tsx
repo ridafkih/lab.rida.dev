@@ -7,7 +7,7 @@ import { Brain, ChevronDown, ChevronRight } from "lucide-react";
 import { Streamdown } from "streamdown";
 import { code } from "@streamdown/code";
 import type { ReasoningPart } from "@opencode-ai/sdk/client";
-import { streamdownComponents } from "../streamdown-components";
+import { streamdownComponents } from "./streamdown-components";
 
 interface OpencodePartReasoningProps {
   part: ReasoningPart;
@@ -26,6 +26,10 @@ export function OpencodePartReasoning({
   useEffect(() => {
     setIsExpanded(isStreaming);
   }, [isStreaming]);
+
+  if (!content?.trim()) {
+    return null;
+  }
 
   return (
     <div className="border-b last:border-b-0 border-border bg-muted/30 min-w-0">

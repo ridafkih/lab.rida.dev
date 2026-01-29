@@ -65,6 +65,13 @@ export default function SessionPage() {
         onModelChange={setSelectedModel}
         activePermission={activePermission}
         onRespondToPermission={respondToPermission}
+        links={links}
+        containers={sessionContainers.map(({ id, name, status, urls }) => ({
+          id,
+          name,
+          status,
+          urls,
+        }))}
       />
       <SessionSidebar
         branches={branches}

@@ -1,7 +1,7 @@
 "use client";
 
 import type { TextPart } from "@opencode-ai/sdk/client";
-import { MessageBlock } from "../message-block";
+import { MessageBlock } from "./message-block";
 
 interface OpencodePartTextProps {
   part: TextPart;

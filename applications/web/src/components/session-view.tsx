@@ -1,13 +1,7 @@
 "use client";
 
-import {
-  type ReactNode,
-  useState,
-  useCallback,
-  useRef,
-  useLayoutEffect,
-  type KeyboardEvent,
-} from "react";
+import { useState, useCallback, useRef, useLayoutEffect, type KeyboardEvent } from "react";
+import { cn } from "@lab/ui/utils/cn";
 import { Copy } from "@lab/ui/components/copy";
 import { Button } from "@lab/ui/components/button";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@lab/ui/components/tabs";
@@ -50,6 +44,19 @@ type Model = {
   name: string;
 };
 
+type Link = {
+  id: string;
+  title: string;
+  url: string;
+};
+
+type ContainerInfo = {
+  id: string;
+  name: string;
+  status: string;
+  urls: { port: number; url: string }[];
+};
+
 type SessionViewProps = {
   messages: MessageState[];
   reviewFiles: ReviewableFile[];
@@ -66,6 +73,8 @@ type SessionViewProps = {
   onModelChange?: (model: Model) => void;
   activePermission?: PermissionRequest | null;
   onRespondToPermission?: (permissionId: string, response: PermissionResponse) => void;
+  links?: Link[];
+  containers?: ContainerInfo[];
 };
 
 export function SessionView({
@@ -84,8 +93,13 @@ export function SessionView({
   onModelChange,
   activePermission,
   onRespondToPermission,
+  links = [],
+  containers = [],
 }: SessionViewProps) {
   const [inputValue, setInputValue] = useState("");
+  const [activeFrameTab, setActiveFrameTab] = useState<string | undefined>(undefined);
+  const [visitedFrameTabs, setVisitedFrameTabs] = useState<Set<string>>(new Set());
+  const frameRefs = useRef<Record<string, HTMLIFrameElement | null>>({});
   const scrollRef = useRef<HTMLDivElement>(null);
   const isAtBottomRef = useRef(true);
 
@@ -134,6 +148,15 @@ export function SessionView({
     },
     [handleSend],
   );
+
+  const handleFrameTabChange = useCallback((tabId: string) => {
+    setActiveFrameTab(tabId);
+    setVisitedFrameTabs((prev) => new Set([...prev, tabId]));
+  }, []);
+
+  const handleFrameRefresh = useCallback((linkId: string) => {
+    frameRefs.current[linkId]?.contentWindow?.location.reload();
+  }, []);
 
   const isDisabled = isSending || isProcessing;
 
@@ -234,14 +257,67 @@ export function SessionView({
           <ReviewPanel files={reviewFiles} onDismiss={onDismissFile} />
         </TabsContent>
         <TabsContent value="frame" className="flex-1 flex flex-col min-h-0">
-          {frameUrl && (
-            <div className="p-2 border-b border-border">
-              <UrlBar url={frameUrl} onRefresh={onFrameRefresh} />
-            </div>
-          )}
-          <div className="flex-1 flex items-center justify-center">
-            <Copy muted>Frame view coming soon</Copy>
-          </div>
+          {(() => {
+            const containerLinks = containers.flatMap((container) =>
+              container.urls.map((urlInfo) => ({
+                id: `${container.id}-${urlInfo.port}`,
+                title: `${container.name}:${urlInfo.port}`,
+                url: urlInfo.url,
+              })),
+            );
+            const allLinks = [...containerLinks, ...links];
+
+            if (allLinks.length === 0) {
+              return (
+                <div className="flex-1 flex items-center justify-center">
+                  <Copy muted>No links available</Copy>
+                </div>
+              );
+            }
+
+            return (
+              <Tabs
+                value={activeFrameTab ?? allLinks[0]?.id}
+                onValueChange={handleFrameTabChange}
+                className="flex-1 flex flex-col min-h-0"
+              >
+                <TabsList style={{ gridTemplateColumns: `repeat(${allLinks.length}, 1fr)` }}>
+                  {allLinks.map((link) => (
+                    <TabsTrigger key={link.id} value={link.id}>
+                      {link.title}
+                    </TabsTrigger>
+                  ))}
+                </TabsList>
+                <div className="flex-1 relative">
+                  {allLinks.map((link) => (
+                    <div
+                      key={link.id}
+                      className={cn(
+                        "absolute inset-0 flex flex-col",
+                        (activeFrameTab ?? allLinks[0]?.id) !== link.id && "hidden",
+                      )}
+                    >
+                      {visitedFrameTabs.has(link.id) ||
+                      (activeFrameTab === undefined && link.id === allLinks[0]?.id) ? (
+                        <>
+                          <div className="p-2 border-b border-border">
+                            <UrlBar url={link.url} onRefresh={() => handleFrameRefresh(link.id)} />
+                          </div>
+                          <iframe
+                            ref={(el) => {
+                              frameRefs.current[link.id] = el;
+                            }}
+                            src={link.url}
+                            className="flex-1 border-0"
+                          />
+                        </>
+                      ) : null}
+                    </div>
+                  ))}
+                </div>
+              </Tabs>
+            );
+          })()}
         </TabsContent>
         <TabsContent value="stream" className="flex-1 flex flex-col min-h-0">
           {streamUrl && (

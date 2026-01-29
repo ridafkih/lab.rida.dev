@@ -6,6 +6,7 @@ import {
   useState,
   type ReactNode,
   type ButtonHTMLAttributes,
+  type HTMLAttributes,
 } from "react";
 import { cn } from "../utils/cn";
 import { useControllable } from "../hooks/use-controllable";
@@ -51,16 +52,16 @@ export function Tabs({
   );
 }
 
-export type TabsListProps = {
+export type TabsListProps = HTMLAttributes<HTMLDivElement> & {
   children: ReactNode;
-  className?: string;
 };
 
-export function TabsList({ children, className }: TabsListProps) {
+export function TabsList({ children, className, ...props }: TabsListProps) {
   return (
     <div
       role="tablist"
       className={cn("grid grid-cols-[1fr_1fr] h-8 border-b border-border", className)}
+      {...props}
     >
       {children}
     </div>
