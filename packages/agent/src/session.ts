@@ -1,4 +1,5 @@
 import { EventEmitter } from "node:events";
+import { createOpencodeClient, type OpencodeClient, type TextPart } from "@opencode-ai/sdk/client";
 import type {
   AgentSessionConfig,
   AgentEvents,
@@ -7,32 +8,18 @@ import type {
   SessionContainer,
 } from "./types";
 
-interface OpenCodeMessage {
-  role: "user" | "assistant";
-  content: string;
-}
-
-interface OpenCodeStreamEvent {
-  type: "token" | "tool_call" | "tool_result" | "message" | "done" | "error";
-  content?: string;
-  tool_call?: { id: string; name: string; arguments: Record<string, unknown> };
-  tool_result?: { id: string; result: string };
-  message?: OpenCodeMessage;
-  error?: string;
-}
-
 export class AgentSession extends EventEmitter {
   private config: AgentSessionConfig;
-  private opencodeUrl: string;
-  private conversationId?: string;
-  private messages: AgentMessage[] = [];
+  private client: OpencodeClient;
   private containers: Map<string, SessionContainer>;
   private isProcessing = false;
 
   constructor(config: AgentSessionConfig, opencodeUrl: string) {
     super();
     this.config = config;
-    this.opencodeUrl = opencodeUrl;
+    this.client = createOpencodeClient({
+      baseUrl: opencodeUrl,
+    });
 
     this.containers = new Map();
     for (const container of config.containers) {
@@ -63,6 +50,41 @@ export class AgentSession extends EventEmitter {
     return Array.from(this.containers.values());
   }
 
+  async getMessages(): Promise<AgentMessage[]> {
+    try {
+      const response = await this.client.session.messages({
+        path: { id: this.config.sessionId },
+      });
+
+      if (!response.data) {
+        return [];
+      }
+
+      return response.data.map((message) => this.transformOpenCodeMessage(message));
+    } catch (error) {
+      console.error("Failed to fetch messages from OpenCode:", error);
+      return [];
+    }
+  }
+
+  private transformOpenCodeMessage(openCodeMessage: {
+    info: { id: string; role: "user" | "assistant"; time: { created: number } };
+    parts: Array<{ type: string; text?: string }>;
+  }): AgentMessage {
+    const textParts = openCodeMessage.parts.filter(
+      (part): part is { type: "text"; text: string } =>
+        part.type === "text" && typeof part.text === "string",
+    );
+    const content = textParts.map((part) => part.text).join("\n");
+
+    return {
+      id: openCodeMessage.info.id,
+      role: openCodeMessage.info.role,
+      content,
+      timestamp: openCodeMessage.info.time.created,
+    };
+  }
+
   async sendMessage(content: string): Promise<void> {
     if (this.isProcessing) {
       throw new Error("Agent is already processing a message");
@@ -76,7 +98,6 @@ export class AgentSession extends EventEmitter {
       content,
       timestamp: Date.now(),
     };
-    this.messages.push(userMessage);
     this.emit("message", userMessage);
 
     try {
@@ -90,105 +111,66 @@ export class AgentSession extends EventEmitter {
   }
 
   private async processWithOpenCode(userMessage: string): Promise<void> {
-    const requestBody = {
-      conversation_id: this.conversationId,
-      message: userMessage,
-      system_prompt: this.config.systemPrompt,
-      stream: true,
-    };
-
-    const response = await fetch(`${this.opencodeUrl}/api/chat`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(requestBody),
+    const response = await this.client.session.prompt({
+      path: { id: this.config.sessionId },
+      body: {
+        parts: [{ type: "text", text: userMessage }],
+        system: this.config.systemPrompt,
+      },
     });
 
-    if (!response.ok) {
-      throw new Error(`OpenCode API error: ${response.status} ${response.statusText}`);
+    if (response.error) {
+      throw new Error(`OpenCode API error: ${JSON.stringify(response.error)}`);
     }
 
-    if (!response.body) {
-      throw new Error("No response body from OpenCode");
+    if (!response.data) {
+      throw new Error("No response data from OpenCode");
     }
 
-    const reader = response.body.getReader();
-    const decoder = new TextDecoder();
-    let buffer = "";
-    let assistantContent = "";
+    const { info, parts } = response.data;
 
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
+    for (const part of parts) {
+      if (part.type === "text" && "text" in part) {
+        this.emit("token", part.text);
+      } else if (part.type === "tool" && "tool" in part && "state" in part) {
+        const toolPart = part as {
+          callID: string;
+          tool: string;
+          state: { status: string; input?: Record<string, unknown>; output?: string };
+        };
 
-      buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split("\n");
-      buffer = lines.pop() ?? "";
-
-      for (const line of lines) {
-        if (!line.startsWith("data: ")) continue;
-        const data = line.slice(6);
-        if (data === "[DONE]") continue;
-
-        let event: OpenCodeStreamEvent;
-        try {
-          event = JSON.parse(data);
-        } catch (error) {
-          console.warn("Failed to parse SSE event:", error);
-          continue;
-        }
-
-        switch (event.type) {
-          case "token":
-            if (event.content) {
-              assistantContent += event.content;
-              this.emit("token", event.content);
-            }
-            break;
-
-          case "tool_call":
-            if (event.tool_call) {
-              const toolInvocation: ToolInvocation = {
-                id: event.tool_call.id,
-                name: event.tool_call.name,
-                status: "running",
-                args: event.tool_call.arguments,
-              };
-              this.emit("toolStart", toolInvocation);
-            }
-            break;
-
-          case "tool_result":
-            if (event.tool_result) {
-              const toolInvocation: ToolInvocation = {
-                id: event.tool_result.id,
-                name: "",
-                status: "completed",
-                result: event.tool_result.result,
-              };
-              this.emit("toolEnd", toolInvocation);
-            }
-            break;
-
-          case "error":
-            throw new Error(event.error ?? "Unknown OpenCode error");
+        if (toolPart.state.status === "running") {
+          const toolInvocation: ToolInvocation = {
+            id: toolPart.callID,
+            name: toolPart.tool,
+            status: "running",
+            args: toolPart.state.input,
+          };
+          this.emit("toolStart", toolInvocation);
+        } else if (toolPart.state.status === "completed") {
+          const toolInvocation: ToolInvocation = {
+            id: toolPart.callID,
+            name: toolPart.tool,
+            status: "completed",
+            result: toolPart.state.output,
+          };
+          this.emit("toolEnd", toolInvocation);
         }
       }
     }
 
+    const textParts = parts.filter((part): part is TextPart => part.type === "text");
+    const assistantContent = textParts.map((part) => part.text).join("\n");
+
     if (assistantContent) {
       const assistantMessage: AgentMessage = {
-        id: crypto.randomUUID(),
+        id: info.id,
         role: "assistant",
         content: assistantContent,
-        timestamp: Date.now(),
+        timestamp: info.time.created,
       };
-      this.messages.push(assistantMessage);
       this.emit("message", assistantMessage);
     }
-  }
-
-  getMessages(): AgentMessage[] {
-    return [...this.messages];
   }
 
   stop(): void {

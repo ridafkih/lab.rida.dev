@@ -44,6 +44,7 @@
       "name": "@lab/agent",
       "version": "0.1.0",
       "dependencies": {
+        "@opencode-ai/sdk": "^1.1.41",
         "zod": "^3.24.2",
       },
       "devDependencies": {

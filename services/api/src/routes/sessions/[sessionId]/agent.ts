@@ -25,7 +25,7 @@ const GET: RouteHandler = async (_request, params) => {
   return Response.json({
     active: true,
     isProcessing: session.isActive,
-    messages: session.getMessages(),
+    messages: await session.getMessages(),
   });
 };
 
