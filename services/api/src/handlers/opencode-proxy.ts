@@ -59,18 +59,28 @@ function buildForwardHeaders(request: Request): Headers {
 }
 
 function buildSseResponse(proxyResponse: Response): Response {
-  const { readable, writable } = new TransformStream();
-
   const body = proxyResponse.body;
-  if (body) {
-    body.pipeTo(writable).catch(() => {});
+
+  if (!body) {
+    return new Response(null, {
+      status: proxyResponse.status,
+      headers: {
+        "Content-Type": "text/event-stream",
+        "Cache-Control": "no-cache",
+        Connection: "keep-alive",
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Methods": "GET, POST, PUT, PATCH, DELETE, OPTIONS",
+        "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Lab-Session-Id",
+      },
+    });
   }
 
-  return new Response(readable, {
+  return new Response(body, {
     status: proxyResponse.status,
     headers: {
       "Content-Type": "text/event-stream",
       "Cache-Control": "no-cache",
+      Connection: "keep-alive",
       "Access-Control-Allow-Origin": "*",
       "Access-Control-Allow-Methods": "GET, POST, PUT, PATCH, DELETE, OPTIONS",
       "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Lab-Session-Id",
@@ -116,9 +126,8 @@ export async function handleOpenCodeProxy(request: Request, url: URL): Promise<R
     method: request.method,
     headers: forwardHeaders,
     body,
-    // @ts-expect-error
-    duplex: "half",
-  });
+    ...(body ? { duplex: "half" } : {}),
+  } as RequestInit);
 
   if (isSseResponse(path, proxyResponse)) {
     return buildSseResponse(proxyResponse);

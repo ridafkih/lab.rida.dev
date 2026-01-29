@@ -26,12 +26,8 @@ import {
 import { ReviewPanel } from "./review-panel";
 import type { ReviewableFile } from "@/types/review";
 import { MessageBlock } from "./message-block";
-import {
-  ToolCallBlock,
-  ToolCallBlockStatus,
-  ToolCallBlockDuration,
-  ToolCallBlockName,
-} from "./tool-call-block";
+import { MessagePartsRenderer } from "./opencode/message-parts-renderer";
+import { PermissionDialog } from "./opencode/permission-dialog";
 import {
   ChatInput,
   ChatInputTextarea,
@@ -41,6 +37,11 @@ import {
 } from "./chat-input";
 import { UrlBar } from "./url-bar";
 import { Dropdown, DropdownTrigger, DropdownMenu, DropdownItem } from "@lab/ui/components/dropdown";
+import type {
+  MessageState,
+  PermissionRequest,
+  PermissionResponse,
+} from "@/lib/opencode/state/types";
 
 type Model = {
   providerId: string;
@@ -49,25 +50,8 @@ type Model = {
   name: string;
 };
 
-type ToolCallStatus = "in_progress" | "completed";
-
-type ToolCall = {
-  id: string;
-  name: string;
-  status: ToolCallStatus;
-  duration?: string;
-};
-
-type Message = {
-  id: string;
-  role: "user" | "assistant";
-  content: string;
-  toolCalls?: ToolCall[];
-};
-
 type SessionViewProps = {
-  messages: Message[];
-  streamingContent?: string | null;
+  messages: MessageState[];
   reviewFiles: ReviewableFile[];
   onDismissFile: (path: string) => void;
   frameUrl?: string;
@@ -80,11 +64,12 @@ type SessionViewProps = {
   models?: Model[];
   selectedModel?: Model | null;
   onModelChange?: (model: Model) => void;
+  activePermission?: PermissionRequest | null;
+  onRespondToPermission?: (permissionId: string, response: PermissionResponse) => void;
 };
 
 export function SessionView({
   messages,
-  streamingContent,
   reviewFiles,
   onDismissFile,
   frameUrl,
@@ -97,6 +82,8 @@ export function SessionView({
   models = [],
   selectedModel,
   onModelChange,
+  activePermission,
+  onRespondToPermission,
 }: SessionViewProps) {
   const [inputValue, setInputValue] = useState("");
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -120,7 +107,7 @@ export function SessionView({
     if (isAtBottomRef.current) {
       scrollToBottom();
     }
-  }, [messages, streamingContent, scrollToBottom]);
+  }, [messages, scrollToBottom]);
 
   const handleScroll = useCallback(() => {
     isAtBottomRef.current = checkIfAtBottom();
@@ -151,134 +138,122 @@ export function SessionView({
   const isDisabled = isSending || isProcessing;
 
   return (
-    <Tabs defaultValue="chat" className="flex-1 flex flex-col h-full min-w-0">
-      <TabsList className="grid-cols-[1fr_1fr_1fr_1fr]">
-        <TabsTrigger value="chat">
-          <MessageSquare className="size-3" />
-          Chat
-        </TabsTrigger>
-        <TabsTrigger value="review">
-          <FileSearch className="size-3" />
-          Review
-        </TabsTrigger>
-        <TabsTrigger value="frame">
-          <Frame className="size-3" />
-          Frame
-        </TabsTrigger>
-        <TabsTrigger value="stream">
-          <Radio className="size-3" />
-          Stream
-        </TabsTrigger>
-      </TabsList>
-      <TabsContent value="chat" className="flex-1 flex flex-col min-h-0">
-        <div ref={scrollRef} onScroll={handleScroll} className="flex-1 overflow-y-auto">
-          {messages.flatMap((message) => {
-            const items: ReactNode[] = [
-              <MessageBlock key={message.id} variant={message.role}>
-                {message.content}
-              </MessageBlock>,
-            ];
-            if (message.toolCalls) {
-              for (const toolCall of message.toolCalls) {
-                items.push(
-                  <ToolCallBlock key={toolCall.id}>
-                    <ToolCallBlockStatus completed={toolCall.status === "completed"} />
-                    {toolCall.duration && (
-                      <ToolCallBlockDuration>{toolCall.duration}</ToolCallBlockDuration>
+    <>
+      {activePermission && onRespondToPermission && (
+        <PermissionDialog permission={activePermission} onRespond={onRespondToPermission} />
+      )}
+      <Tabs defaultValue="chat" className="flex-1 flex flex-col h-full min-w-0">
+        <TabsList className="grid-cols-[1fr_1fr_1fr_1fr]">
+          <TabsTrigger value="chat">
+            <MessageSquare className="size-3" />
+            Chat
+          </TabsTrigger>
+          <TabsTrigger value="review">
+            <FileSearch className="size-3" />
+            Review
+          </TabsTrigger>
+          <TabsTrigger value="frame">
+            <Frame className="size-3" />
+            Frame
+          </TabsTrigger>
+          <TabsTrigger value="stream">
+            <Radio className="size-3" />
+            Stream
+          </TabsTrigger>
+        </TabsList>
+        <TabsContent value="chat" className="flex-1 flex flex-col min-h-0">
+          <div
+            ref={scrollRef}
+            onScroll={handleScroll}
+            className="flex-1 overflow-y-auto chat-scroll-container"
+          >
+            {messages.map((messageState) => (
+              <MessagePartsRenderer key={messageState.info.id} messageState={messageState} />
+            ))}
+          </div>
+          <ChatInput>
+            <ChatInputTextarea
+              placeholder="Send a message..."
+              value={inputValue}
+              onChange={(event) => setInputValue(event.target.value)}
+              onKeyDown={handleKeyDown}
+              disabled={isDisabled}
+            />
+            <ChatInputActions>
+              <ChatInputActionsStart>
+                <Button variant="secondary" icon={<Plus className="size-3" />}>
+                  Attach
+                </Button>
+                <Button variant="secondary" icon={<Zap className="size-3" />}>
+                  Skills
+                </Button>
+                <Dropdown>
+                  <DropdownTrigger asChild>
+                    <Button variant="secondary" icon={<SlidersHorizontal className="size-3" />}>
+                      {selectedModel ? selectedModel.name : "Model"}
+                    </Button>
+                  </DropdownTrigger>
+                  <DropdownMenu>
+                    {models.map((model) => (
+                      <DropdownItem
+                        key={`${model.providerId}/${model.modelId}`}
+                        onClick={() => onModelChange?.(model)}
+                      >
+                        {model.name}
+                      </DropdownItem>
+                    ))}
+                    {models.length === 0 && (
+                      <DropdownItem disabled>No models available</DropdownItem>
                     )}
-                    <ToolCallBlockName>{toolCall.name}</ToolCallBlockName>
-                  </ToolCallBlock>,
-                );
-              }
-            }
-            return items;
-          })}
-          {streamingContent && (
-            <MessageBlock key="streaming" variant="assistant" isStreaming>
-              {streamingContent}
-            </MessageBlock>
+                  </DropdownMenu>
+                </Dropdown>
+              </ChatInputActionsStart>
+              <ChatInputActionsEnd>
+                <Button variant="secondary" icon={<Volume2 className="size-3" />}>
+                  Voice
+                </Button>
+                <Button
+                  variant="primary"
+                  icon={
+                    isSending ? (
+                      <Loader2 className="size-3 animate-spin" />
+                    ) : (
+                      <Send className="size-3" />
+                    )
+                  }
+                  onClick={handleSend}
+                  disabled={isDisabled || !inputValue.trim()}
+                >
+                  Send
+                </Button>
+              </ChatInputActionsEnd>
+            </ChatInputActions>
+          </ChatInput>
+        </TabsContent>
+        <TabsContent value="review" className="flex-1 flex flex-col min-h-0">
+          <ReviewPanel files={reviewFiles} onDismiss={onDismissFile} />
+        </TabsContent>
+        <TabsContent value="frame" className="flex-1 flex flex-col min-h-0">
+          {frameUrl && (
+            <div className="p-2 border-b border-border">
+              <UrlBar url={frameUrl} onRefresh={onFrameRefresh} />
+            </div>
           )}
-        </div>
-        <ChatInput>
-          <ChatInputTextarea
-            placeholder="Send a message..."
-            value={inputValue}
-            onChange={(event) => setInputValue(event.target.value)}
-            onKeyDown={handleKeyDown}
-            disabled={isDisabled}
-          />
-          <ChatInputActions>
-            <ChatInputActionsStart>
-              <Button variant="secondary" icon={<Plus className="size-3" />}>
-                Attach
-              </Button>
-              <Button variant="secondary" icon={<Zap className="size-3" />}>
-                Skills
-              </Button>
-              <Dropdown>
-                <DropdownTrigger asChild>
-                  <Button variant="secondary" icon={<SlidersHorizontal className="size-3" />}>
-                    {selectedModel ? selectedModel.name : "Model"}
-                  </Button>
-                </DropdownTrigger>
-                <DropdownMenu>
-                  {models.map((model) => (
-                    <DropdownItem
-                      key={`${model.providerId}/${model.modelId}`}
-                      onClick={() => onModelChange?.(model)}
-                    >
-                      {model.name}
-                    </DropdownItem>
-                  ))}
-                  {models.length === 0 && <DropdownItem disabled>No models available</DropdownItem>}
-                </DropdownMenu>
-              </Dropdown>
-            </ChatInputActionsStart>
-            <ChatInputActionsEnd>
-              <Button variant="secondary" icon={<Volume2 className="size-3" />}>
-                Voice
-              </Button>
-              <Button
-                variant="primary"
-                icon={
-                  isSending ? (
-                    <Loader2 className="size-3 animate-spin" />
-                  ) : (
-                    <Send className="size-3" />
-                  )
-                }
-                onClick={handleSend}
-                disabled={isDisabled || !inputValue.trim()}
-              >
-                Send
-              </Button>
-            </ChatInputActionsEnd>
-          </ChatInputActions>
-        </ChatInput>
-      </TabsContent>
-      <TabsContent value="review" className="flex-1 flex flex-col min-h-0">
-        <ReviewPanel files={reviewFiles} onDismiss={onDismissFile} />
-      </TabsContent>
-      <TabsContent value="frame" className="flex-1 flex flex-col min-h-0">
-        {frameUrl && (
-          <div className="p-2 border-b border-border">
-            <UrlBar url={frameUrl} onRefresh={onFrameRefresh} />
+          <div className="flex-1 flex items-center justify-center">
+            <Copy muted>Frame view coming soon</Copy>
           </div>
-        )}
-        <div className="flex-1 flex items-center justify-center">
-          <Copy muted>Frame view coming soon</Copy>
-        </div>
-      </TabsContent>
-      <TabsContent value="stream" className="flex-1 flex flex-col min-h-0">
-        {streamUrl && (
-          <div className="p-2 border-b border-border">
-            <UrlBar url={streamUrl} onRefresh={onStreamRefresh} />
+        </TabsContent>
+        <TabsContent value="stream" className="flex-1 flex flex-col min-h-0">
+          {streamUrl && (
+            <div className="p-2 border-b border-border">
+              <UrlBar url={streamUrl} onRefresh={onStreamRefresh} />
+            </div>
+          )}
+          <div className="flex-1 flex items-center justify-center">
+            <Copy muted>Stream view coming soon</Copy>
           </div>
-        )}
-        <div className="flex-1 flex items-center justify-center">
-          <Copy muted>Stream view coming soon</Copy>
-        </div>
-      </TabsContent>
-    </Tabs>
+        </TabsContent>
+      </Tabs>
+    </>
   );
 }

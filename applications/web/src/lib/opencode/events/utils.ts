@@ -11,6 +11,16 @@ export function getSessionIdFromEvent(event: Event): string | undefined {
     return properties.sessionID;
   }
 
+  if ("info" in properties && typeof properties.info === "object" && properties.info !== null) {
+    const info = properties.info;
+    if ("sessionID" in info && typeof info.sessionID === "string") {
+      return info.sessionID;
+    }
+    if ("id" in info && typeof info.id === "string") {
+      return info.id;
+    }
+  }
+
   if ("part" in properties && typeof properties.part === "object" && properties.part !== null) {
     const part = properties.part;
     if ("sessionID" in part && typeof part.sessionID === "string") {

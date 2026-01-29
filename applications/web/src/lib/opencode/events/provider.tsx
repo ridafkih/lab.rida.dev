@@ -68,6 +68,11 @@ export function OpenCodeEventsProvider({ children }: OpenCodeEventsProviderProps
             handler(event);
           }
         }
+
+        if (!abortController.signal.aborted) {
+          setConnectionStatus("disconnected");
+          scheduleReconnect();
+        }
       } catch (error) {
         if (abortController.signal.aborted) {
           return;

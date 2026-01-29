@@ -11,6 +11,7 @@ import { sessionContainers } from "@lab/database/schema/session-containers";
 import { containers } from "@lab/database/schema/containers";
 import { containerPorts } from "@lab/database/schema/container-ports";
 import { eq } from "drizzle-orm";
+import { publisher } from "../publisher";
 
 const PROXY_BASE_DOMAIN = process.env.PROXY_BASE_DOMAIN;
 if (!PROXY_BASE_DOMAIN) throw new Error("PROXY_BASE_DOMAIN must be defined");
@@ -107,12 +108,27 @@ const handlers: SchemaHandlers<Schema, Auth> = {
   sessionLogs: {
     getSnapshot: async () => [],
   },
+  sessionMessages: {
+    getSnapshot: async () => [],
+  },
 };
 
 const options: HandlerOptions<Schema, Auth> = {
   authenticate: async (token) => ({ userId: token ?? "anonymous" }),
   onMessage: async (context, message) => {
-    console.log("Received message:", message, "from user:", context.auth.userId);
+    if (message.type === "send_message") {
+      publisher.publishEvent(
+        "sessionMessages",
+        { uuid: message.sessionId },
+        {
+          id: message.id,
+          role: "user",
+          content: message.content,
+          timestamp: message.timestamp,
+          senderId: context.auth.userId,
+        },
+      );
+    }
   },
 };
 

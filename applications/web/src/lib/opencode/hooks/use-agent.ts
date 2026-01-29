@@ -1,48 +1,80 @@
 "use client";
 
-import { useState, useCallback, useEffect } from "react";
-import type { Event } from "@opencode-ai/sdk/client";
-import type { AgentState, AgentMessage } from "../types";
-import { useOpenCodeEvents } from "../events/provider";
-import {
-  isMessagePartUpdatedEvent,
-  isSessionErrorEvent,
-  isSessionIdleEvent,
-} from "../events/guards";
-import { getSessionIdFromEvent, extractErrorMessage } from "../events/utils";
+import { useState, useCallback, useEffect, useMemo } from "react";
 import { useSessionLifecycle } from "../session/use-session-lifecycle";
-import { useSessionMessages } from "../session/use-session-messages";
-import { useStreamingContent } from "../streaming/use-streaming-content";
+import { useOpenCodeState } from "./use-opencode-state";
+import { usePermissions } from "./use-permissions";
+import type {
+  SessionState,
+  MessageState,
+  PermissionRequest,
+  PermissionResponse,
+} from "../state/types";
+import { isTextPart } from "../events/guards";
+
+type AgentState =
+  | { status: "loading" }
+  | { status: "inactive" }
+  | { status: "active"; isProcessing: boolean };
+
+interface RemoteMessage {
+  id: string;
+  role: "user" | "assistant";
+  content: string;
+  timestamp: number;
+}
 
 interface UseAgentResult {
   state: AgentState;
-  messages: AgentMessage[];
+  sessionState: SessionState | null;
+  messages: MessageState[];
   streamingContent: string | null;
   isSending: boolean;
   error: Error | null;
   sendMessage: (content: string, model?: { providerId: string; modelId: string }) => Promise<void>;
+  addRemoteMessage: (message: RemoteMessage) => void;
   clearError: () => void;
+  activePermission: PermissionRequest | null;
+  respondToPermission: (permissionId: string, response: PermissionResponse) => Promise<void>;
 }
 
 export function useAgent(labSessionId: string): UseAgentResult {
-  const { subscribe } = useOpenCodeEvents();
   const {
     opencodeSessionId,
     opencodeClient,
     isInitializing,
     error: lifecycleError,
   } = useSessionLifecycle(labSessionId);
-  const { messages, addOptimisticMessage, refreshMessages } = useSessionMessages(opencodeClient);
-  const { content: streamingContent, appendDelta, reset: resetStreaming } = useStreamingContent();
+
+  const {
+    state: uiState,
+    sessionState,
+    dispatch,
+    loadMessages,
+    clearError: clearStateError,
+    pendingPermissions,
+  } = useOpenCodeState({ sessionId: opencodeSessionId });
+
+  const { activePermission, respondToPermission } = usePermissions({
+    client: opencodeClient,
+    sessionId: opencodeSessionId ?? "",
+    pendingPermissions,
+  });
 
   const [isSending, setIsSending] = useState(false);
   const [error, setError] = useState<Error | null>(null);
 
-  const state: AgentState = isInitializing
-    ? { status: "loading" }
-    : lifecycleError || !opencodeSessionId
-      ? { status: "inactive" }
-      : { status: "active", isProcessing: isSending };
+  const agentState: AgentState = useMemo(() => {
+    if (isInitializing) {
+      return { status: "loading" };
+    }
+    if (lifecycleError || !opencodeSessionId) {
+      return { status: "inactive" };
+    }
+    const sessionStatus = sessionState?.status;
+    const isProcessing = sessionStatus?.type === "busy" || isSending;
+    return { status: "active", isProcessing };
+  }, [isInitializing, lifecycleError, opencodeSessionId, sessionState?.status, isSending]);
 
   useEffect(() => {
     if (lifecycleError) {
@@ -51,47 +83,52 @@ export function useAgent(labSessionId: string): UseAgentResult {
   }, [lifecycleError]);
 
   useEffect(() => {
-    if (opencodeSessionId && !isInitializing) {
-      refreshMessages(opencodeSessionId);
+    if (uiState.error) {
+      setError(uiState.error);
+      clearStateError();
     }
-  }, [opencodeSessionId, isInitializing, refreshMessages]);
+  }, [uiState.error, clearStateError]);
 
   useEffect(() => {
-    const handleEvent = async (event: Event) => {
-      const eventSessionId = getSessionIdFromEvent(event);
+    if (opencodeSessionId && !isInitializing) {
+      const fetchMessages = async () => {
+        const messagesResponse = await opencodeClient.session.messages({
+          path: { id: opencodeSessionId },
+        });
 
-      if (eventSessionId !== opencodeSessionId) {
-        return;
-      }
-
-      if (isSessionIdleEvent(event)) {
-        if (opencodeSessionId) {
-          await refreshMessages(opencodeSessionId);
+        if (messagesResponse.data) {
+          loadMessages(messagesResponse.data);
         }
-        resetStreaming();
-        setIsSending(false);
-        return;
-      }
+      };
+      fetchMessages();
+    }
+  }, [opencodeSessionId, isInitializing, opencodeClient, loadMessages]);
 
-      if (isSessionErrorEvent(event)) {
-        const errorMessage = extractErrorMessage(event.properties.error);
-        setError(new Error(errorMessage));
-        resetStreaming();
-        setIsSending(false);
-        return;
-      }
+  useEffect(() => {
+    if (sessionState?.status.type === "idle" && isSending) {
+      setIsSending(false);
+    }
+  }, [sessionState?.status, isSending]);
 
-      if (isMessagePartUpdatedEvent(event)) {
-        const { part, delta } = event.properties;
+  const messages = useMemo(() => {
+    if (!sessionState) return [];
+    return sessionState.messageOrder
+      .map((id) => sessionState.messages.get(id))
+      .filter((m): m is MessageState => m !== undefined);
+  }, [sessionState]);
 
-        if ((part.type === "text" || part.type === "reasoning") && delta) {
-          appendDelta(delta);
+  const streamingContent = useMemo(() => {
+    for (const message of messages) {
+      if (message.info.role !== "assistant") continue;
+      if (message.isStreaming && message.streamingPartId) {
+        const partState = message.parts.get(message.streamingPartId);
+        if (partState && isTextPart(partState.part)) {
+          return partState.delta || partState.part.text;
         }
       }
-    };
-
-    return subscribe(handleEvent);
-  }, [subscribe, opencodeSessionId, refreshMessages, resetStreaming, appendDelta]);
+    }
+    return null;
+  }, [messages]);
 
   const sendMessage = useCallback(
     async (content: string, model?: { providerId: string; modelId: string }) => {
@@ -101,16 +138,6 @@ export function useAgent(labSessionId: string): UseAgentResult {
 
       setError(null);
       setIsSending(true);
-      resetStreaming();
-
-      const userMessage: AgentMessage = {
-        id: crypto.randomUUID(),
-        role: "user",
-        content,
-        timestamp: Date.now(),
-      };
-
-      addOptimisticMessage(userMessage);
 
       try {
         const promptResponse = await opencodeClient.session.promptAsync({
@@ -132,20 +159,43 @@ export function useAgent(labSessionId: string): UseAgentResult {
         throw errorInstance;
       }
     },
-    [opencodeSessionId, opencodeClient, addOptimisticMessage, resetStreaming],
+    [opencodeSessionId, opencodeClient],
   );
 
   const clearError = useCallback(() => {
     setError(null);
-  }, []);
+    clearStateError();
+  }, [clearStateError]);
+
+  const addRemoteMessage = useCallback(
+    (remoteMessage: RemoteMessage) => {
+      if (!opencodeSessionId) return;
+
+      dispatch({
+        type: "REMOTE_MESSAGE_ADDED",
+        payload: {
+          id: remoteMessage.id,
+          sessionId: opencodeSessionId,
+          role: remoteMessage.role,
+          content: remoteMessage.content,
+          timestamp: remoteMessage.timestamp,
+        },
+      });
+    },
+    [opencodeSessionId, dispatch],
+  );
 
   return {
-    state,
+    state: agentState,
+    sessionState,
     messages,
     streamingContent,
     isSending,
     error,
     sendMessage,
+    addRemoteMessage,
     clearError,
+    activePermission,
+    respondToPermission,
   };
 }

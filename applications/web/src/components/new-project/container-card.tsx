@@ -20,7 +20,7 @@ export function ContainerCard({ container, onClick, onDelete }: ContainerCardPro
 
   return (
     <div
-      className="flex items-center gap-3 p-3 border border-border cursor-pointer hover:bg-muted/50 transition-colors"
+      className="flex items-center gap-3 p-3 border border-border cursor-pointer hover:bg-muted/50"
       onClick={onClick}
     >
       <Container className="size-5 text-muted-foreground shrink-0" />

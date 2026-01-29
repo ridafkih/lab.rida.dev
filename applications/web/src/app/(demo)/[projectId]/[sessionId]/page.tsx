@@ -13,8 +13,9 @@ export default function SessionPage() {
   const params = useParams();
   const sessionId = typeof params.sessionId !== "string" ? "" : params.sessionId;
 
-  const { send, connectionState, useChannel } = useMultiplayer();
-  const { sendMessage, isSending, state, messages, streamingContent } = useAgent(sessionId);
+  const { connectionState, useChannel } = useMultiplayer();
+  const { sendMessage, isSending, state, messages, activePermission, respondToPermission } =
+    useAgent(sessionId);
   const isProcessing = state.status === "active" && state.isProcessing;
 
   const { models } = useModels();
@@ -37,10 +38,6 @@ export default function SessionPage() {
     await sendMessage(content, model);
   };
 
-  const _handleTyping = (isTyping: boolean) => {
-    send(sessionId, { type: "set_typing", isTyping });
-  };
-
   const handleDismissFile = (path: string) => {
     setLocalReviewFiles((files) =>
       files.map((file) => (file.path === path ? { ...file, status: "dismissed" as const } : file)),
@@ -58,12 +55,7 @@ export default function SessionPage() {
   return (
     <div className="flex h-full">
       <SessionView
-        messages={messages.map(({ id, role, content }) => ({
-          id,
-          role,
-          content,
-        }))}
-        streamingContent={streamingContent}
+        messages={messages}
         reviewFiles={reviewFiles}
         onDismissFile={handleDismissFile}
         onSendMessage={handleSendMessage}
@@ -72,6 +64,8 @@ export default function SessionPage() {
         models={models}
         selectedModel={selectedModel}
         onModelChange={setSelectedModel}
+        activePermission={activePermission}
+        onRespondToPermission={respondToPermission}
       />
       <SessionSidebar
         promptEngineers={promptEngineers}

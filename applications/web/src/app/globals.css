@@ -10,3 +10,7 @@
   --diffs-tab-size: 2;
   --diffs-header-font-family: inherit;
 }
+
+.chat-scroll-container {
+  contain: inline-size;
+}

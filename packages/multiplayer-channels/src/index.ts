@@ -148,17 +148,36 @@ export const schema = defineSchema({
       default: [],
       event: LogEntrySchema,
     }),
+
+    sessionMessages: defineChannel({
+      path: "session/{uuid}/messages",
+      snapshot: z.array(z.never()),
+      default: [],
+      event: z.object({
+        id: z.string(),
+        role: z.enum(["user", "assistant"]),
+        content: z.string(),
+        timestamp: z.number(),
+        senderId: z.string(),
+      }),
+    }),
   },
 
   clientMessages: z.discriminatedUnion("type", [
-    z.object({
-      type: z.literal("send_message"),
-      content: z.string(),
-    }),
-    z.object({
-      type: z.literal("set_typing"),
-      isTyping: z.boolean(),
-    }),
+    z
+      .object({
+        type: z.literal("send_message"),
+        id: z.string(),
+        content: z.string(),
+        timestamp: z.number(),
+      })
+      .passthrough(),
+    z
+      .object({
+        type: z.literal("set_typing"),
+        isTyping: z.boolean(),
+      })
+      .passthrough(),
   ]),
 });
 

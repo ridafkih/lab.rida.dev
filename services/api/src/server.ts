@@ -34,6 +34,7 @@ if (port === undefined) {
 
 export const server = Bun.serve<WebSocketData<Auth>>({
   port,
+  idleTimeout: 0,
   websocket: websocketHandler,
   async fetch(request): Promise<Response | undefined> {
     const url = new URL(request.url);
