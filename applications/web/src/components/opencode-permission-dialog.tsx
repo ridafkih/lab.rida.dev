@@ -6,12 +6,12 @@ import { Copy } from "@lab/ui/components/copy";
 import { ShieldAlert, X, Check, CheckCheck } from "lucide-react";
 import type { PermissionRequest, PermissionResponse } from "@/lib/opencode/state/types";
 
-interface PermissionDialogProps {
+interface OpencodePermissionDialogProps {
   permission: PermissionRequest;
   onRespond: (permissionId: string, response: PermissionResponse) => void;
 }
 
-export function PermissionDialog({ permission, onRespond }: PermissionDialogProps) {
+export function OpencodePermissionDialog({ permission, onRespond }: OpencodePermissionDialogProps) {
   const { permission: perm } = permission;
 
   const handleDeny = useCallback(() => {

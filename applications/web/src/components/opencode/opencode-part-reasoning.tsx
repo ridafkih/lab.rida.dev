@@ -6,22 +6,29 @@ import { Copy } from "@lab/ui/components/copy";
 import { Brain, ChevronDown, ChevronRight } from "lucide-react";
 import { Streamdown } from "streamdown";
 import { code } from "@streamdown/code";
+import type { ReasoningPart } from "@opencode-ai/sdk/client";
 import { streamdownComponents } from "../streamdown-components";
 
-interface ReasoningBlockProps {
-  content: string;
+interface OpencodePartReasoningProps {
+  part: ReasoningPart;
+  delta?: string;
   isStreaming?: boolean;
 }
 
-export function ReasoningBlock({ content, isStreaming = false }: ReasoningBlockProps) {
+export function OpencodePartReasoning({
+  part,
+  delta,
+  isStreaming = false,
+}: OpencodePartReasoningProps) {
   const [isExpanded, setIsExpanded] = useState(isStreaming);
+  const content = delta || part.text;
 
   useEffect(() => {
     setIsExpanded(isStreaming);
   }, [isStreaming]);
 
   return (
-    <div className="border-b border-border bg-muted/30 min-w-0">
+    <div className="border-b last:border-b-0 border-border bg-muted/30 min-w-0">
       <button
         type="button"
         className="flex items-center gap-2 w-full px-4 py-2 text-muted-foreground hover:bg-muted/50 min-w-0"

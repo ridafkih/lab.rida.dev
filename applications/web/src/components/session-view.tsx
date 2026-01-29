@@ -26,8 +26,8 @@ import {
 import { ReviewPanel } from "./review-panel";
 import type { ReviewableFile } from "@/types/review";
 import { MessageBlock } from "./message-block";
-import { MessagePartsRenderer } from "./opencode/message-parts-renderer";
-import { PermissionDialog } from "./opencode/permission-dialog";
+import { OpencodeParts } from "./opencode-parts";
+import { OpencodePermissionDialog } from "./opencode-permission-dialog";
 import {
   ChatInput,
   ChatInputTextarea,
@@ -140,7 +140,7 @@ export function SessionView({
   return (
     <>
       {activePermission && onRespondToPermission && (
-        <PermissionDialog permission={activePermission} onRespond={onRespondToPermission} />
+        <OpencodePermissionDialog permission={activePermission} onRespond={onRespondToPermission} />
       )}
       <Tabs defaultValue="chat" className="flex-1 flex flex-col h-full min-w-0">
         <TabsList className="grid-cols-[1fr_1fr_1fr_1fr]">
@@ -168,7 +168,7 @@ export function SessionView({
             className="flex-1 overflow-y-auto chat-scroll-container -mb-px"
           >
             {messages.map((messageState) => (
-              <MessagePartsRenderer key={messageState.info.id} messageState={messageState} />
+              <OpencodeParts key={messageState.info.id} messageState={messageState} />
             ))}
           </div>
           <ChatInput>
