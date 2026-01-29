@@ -1,0 +1,21 @@
+{
+  "name": "@lab/client",
+  "version": "0.1.0",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./src/index.ts"
+    }
+  },
+  "scripts": {
+    "types": "tsc --noEmit",
+    "lint": "oxlint",
+    "format": "oxfmt ."
+  },
+  "devDependencies": {
+    "oxfmt": "0.27.0",
+    "oxlint": "1.42.0",
+    "typescript": "^5"
+  }
+}

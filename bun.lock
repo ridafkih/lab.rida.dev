@@ -52,6 +52,15 @@
         "typescript": "^5",
       },
     },
+    "packages/client": {
+      "name": "@lab/client",
+      "version": "0.1.0",
+      "devDependencies": {
+        "oxfmt": "0.27.0",
+        "oxlint": "1.42.0",
+        "typescript": "^5",
+      },
+    },
     "packages/database": {
       "name": "@lab/database",
       "version": "0.1.0",
@@ -406,6 +415,8 @@
     "@lab/agent": ["@lab/agent@workspace:packages/agent"],
 
     "@lab/api": ["@lab/api@workspace:services/api"],
+
+    "@lab/client": ["@lab/client@workspace:packages/client"],
 
     "@lab/database": ["@lab/database@workspace:packages/database"],
 
