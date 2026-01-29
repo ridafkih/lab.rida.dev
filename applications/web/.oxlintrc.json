@@ -39,7 +39,9 @@
     }
   },
   "env": {
-    "builtin": true
+    "builtin": true,
+    "browser": true,
+    "node": true
   },
   "globals": {},
   "ignorePatterns": []

@@ -7,7 +7,7 @@
     "start": "bun src/index.ts",
     "types": "tsc --noEmit",
     "lint": "oxlint",
-    "format": "oxfmt"
+    "format": "oxfmt ."
   },
   "dependencies": {
     "@lab/multiplayer-channels": "workspace:*",

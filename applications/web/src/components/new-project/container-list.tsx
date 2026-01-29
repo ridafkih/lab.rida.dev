@@ -1,4 +1,3 @@
-import { Copy } from "@lab/ui/components/copy";
 import { Button } from "@lab/ui/components/button";
 import { Textarea } from "@lab/ui/components/textarea";
 import { FormField } from "@lab/ui/components/form-field";

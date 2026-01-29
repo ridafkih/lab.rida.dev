@@ -22,7 +22,7 @@
   "scripts": {
     "types": "tsc --noEmit",
     "lint": "oxlint",
-    "format": "oxfmt"
+    "format": "oxfmt ."
   },
   "dependencies": {
     "@lab/multiplayer-shared": "workspace:*"

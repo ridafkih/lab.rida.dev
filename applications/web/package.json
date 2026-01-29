@@ -8,7 +8,7 @@
     "start": "next start",
     "types": "tsc --noEmit",
     "lint": "oxlint",
-    "format": "oxfmt"
+    "format": "oxfmt ."
   },
   "dependencies": {
     "@lab/multiplayer-channels": "workspace:*",

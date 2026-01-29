@@ -1,12 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { notFound, useParams } from "next/navigation";
+import { useParams } from "next/navigation";
 import { SessionView } from "@/components/session-view";
 import { SessionSidebar } from "@/components/session-sidebar";
 import type { ReviewableFile } from "@/types/review";
 import { useMultiplayer } from "@/lib/multiplayer/client";
-import { ParamValue } from "next/dist/server/request/params";
 
 export default function SessionPage() {
   const params = useParams();
@@ -24,11 +23,11 @@ export default function SessionPage() {
   const [localReviewFiles, setLocalReviewFiles] = useState<ReviewableFile[]>([]);
   const reviewFiles = changedFiles.length > 0 ? changedFiles : localReviewFiles;
 
-  const handleSendMessage = (content: string) => {
+  const _handleSendMessage = (content: string) => {
     send(sessionId, { type: "send_message", content });
   };
 
-  const handleTyping = (isTyping: boolean) => {
+  const _handleTyping = (isTyping: boolean) => {
     send(sessionId, { type: "set_typing", isTyping });
   };
 

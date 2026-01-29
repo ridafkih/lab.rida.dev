@@ -4,17 +4,15 @@
   "type": "module",
   "typesVersions": {
     "*": {
-      "*": ["src/*"]
+      "*": [
+        "src/*"
+      ]
     }
   },
   "exports": {
     ".": {
       "types": "./src/index.ts",
       "default": "./src/index.ts"
-    },
-    "./sandbox": {
-      "types": "./src/sandbox/index.ts",
-      "default": "./src/sandbox/index.ts"
     }
   },
   "scripts": {

@@ -33,7 +33,7 @@
   "scripts": {
     "types": "tsc --noEmit",
     "lint": "oxlint",
-    "format": "oxfmt"
+    "format": "oxfmt ."
   },
   "dependencies": {
     "clsx": "^2.1.1",
