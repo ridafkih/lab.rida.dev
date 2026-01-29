@@ -75,6 +75,7 @@ type SessionViewProps = {
   onRespondToPermission?: (permissionId: string, response: PermissionResponse) => void;
   links?: Link[];
   containers?: ContainerInfo[];
+  labSessionId: string;
 };
 
 export function SessionView({
@@ -95,6 +96,7 @@ export function SessionView({
   onRespondToPermission,
   links = [],
   containers = [],
+  labSessionId,
 }: SessionViewProps) {
   const [inputValue, setInputValue] = useState("");
   const [activeFrameTab, setActiveFrameTab] = useState<string | undefined>(undefined);
@@ -201,6 +203,7 @@ export function SessionView({
               onChange={(event) => setInputValue(event.target.value)}
               onKeyDown={handleKeyDown}
               disabled={isDisabled}
+              autoFocus
             />
             <ChatInputActions>
               <ChatInputActionsStart>
@@ -253,8 +256,8 @@ export function SessionView({
             </ChatInputActions>
           </ChatInput>
         </TabsContent>
-        <TabsContent value="review" className="flex-1 flex flex-col min-h-0">
-          <ReviewPanel files={reviewFiles} onDismiss={onDismissFile} />
+        <TabsContent value="review" className="flex-1 flex flex-col min-h-0 min-w-0">
+          <ReviewPanel files={reviewFiles} onDismiss={onDismissFile} labSessionId={labSessionId} />
         </TabsContent>
         <TabsContent value="frame" className="flex-1 flex flex-col min-h-0">
           {(() => {

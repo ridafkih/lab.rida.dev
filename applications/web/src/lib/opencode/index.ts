@@ -2,7 +2,8 @@ export { OpenCodeEventsProvider, useOpenCodeEvents } from "./events/provider";
 export { useAgent } from "./hooks/use-agent";
 export { useOpenCodeState } from "./hooks/use-opencode-state";
 export { usePermissions } from "./hooks/use-permissions";
-export { useReviewFiles } from "./hooks/use-review-files";
+export { useFileBrowser } from "./hooks/use-file-browser";
+export type { FileNode } from "./hooks/use-file-browser";
 
 export type {
   UIState,

@@ -52,7 +52,7 @@ export default function SessionPage() {
   }
 
   return (
-    <div className="flex h-full">
+    <div className="flex h-full min-w-0">
       <SessionView
         messages={messages}
         reviewFiles={reviewFiles}
@@ -72,6 +72,7 @@ export default function SessionPage() {
           status,
           urls,
         }))}
+        labSessionId={sessionId}
       />
       <SessionSidebar
         branches={branches}

@@ -56,7 +56,13 @@ export const streamdownComponents = {
   ),
 
   p: ({ className, children, node: _, ...props }: TextProps) => (
-    <p className={cn("font-sans text-sm text-foreground mb-3 last:mb-0", className)} {...props}>
+    <p
+      className={cn(
+        "font-sans text-sm text-foreground mb-3 last:mb-0 whitespace-pre-wrap",
+        className,
+      )}
+      {...props}
+    >
       {children}
     </p>
   ),
