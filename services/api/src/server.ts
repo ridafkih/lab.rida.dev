@@ -6,7 +6,7 @@ import {
   browserStreamHandler,
   type BrowserStreamData,
 } from "./handlers/browser-stream";
-import { handleBrowserReadyCallback } from "./handlers/browser-ready";
+import { browserSessionService } from "./browser/browser-session-service";
 import { isHttpMethod, isRouteModule } from "./utils/route-handler";
 import { join } from "node:path";
 
@@ -91,10 +91,6 @@ export const server = Bun.serve<CombinedWebSocketData>({
       return handleOpenCodeProxy(request, url);
     }
 
-    if (url.pathname === "/internal/browser-ready" && request.method === "POST") {
-      return handleBrowserReadyCallback(request);
-    }
-
     const match = router.match(request);
 
     if (!match) {
@@ -123,3 +119,16 @@ export const server = Bun.serve<CombinedWebSocketData>({
     return withCors(response);
   },
 });
+
+// Start browser session reconciler
+browserSessionService.startReconciler();
+
+// Graceful shutdown
+function gracefulShutdown() {
+  console.log("Shutting down...");
+  browserSessionService.stopReconciler();
+  process.exit(0);
+}
+
+process.on("SIGTERM", gracefulShutdown);
+process.on("SIGINT", gracefulShutdown);

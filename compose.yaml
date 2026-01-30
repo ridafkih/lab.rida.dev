@@ -27,16 +27,7 @@ services:
       context: .
       dockerfile: services/opencode/Dockerfile
     container_name: lab-opencode
-    command:
-      [
-        "serve",
-        "--hostname",
-        "0.0.0.0",
-        "--port",
-        "3000",
-        "--print-logs",
-        "true",
-      ]
+    command: ["serve", "--hostname", "0.0.0.0", "--port", "3000"]
     ports:
       - "3002:3000"
     volumes:
@@ -93,8 +84,10 @@ services:
     container_name: lab-browser
     volumes:
       - browser_sockets:/tmp/agent-browser-socket
+      - browser_profiles:/data/browser-profiles
     environment:
       AGENT_BROWSER_SOCKET_DIR: /tmp/agent-browser-socket
+      AGENT_BROWSER_PROFILE_DIR: /data/browser-profiles
       AGENT_BROWSER_SESSION: default
       AGENT_BROWSER_STREAM_PORT: "9223"
       BROWSER_API_PORT: "80"
@@ -106,3 +99,4 @@ volumes:
   postgres_data:
   session_workspaces:
   browser_sockets:
+  browser_profiles:

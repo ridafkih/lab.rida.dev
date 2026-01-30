@@ -13,13 +13,12 @@ import { containerPorts } from "@lab/database/schema/container-ports";
 import { eq } from "drizzle-orm";
 import { publisher } from "../publisher";
 import { opencode } from "../opencode";
-import {
-  subscribeToBrowserSession,
-  unsubscribeFromBrowserSession,
-  browserStateManager,
-} from "../browser";
+import { browserSessionService } from "../browser/browser-session-service";
 
 const PROXY_BASE_DOMAIN = process.env.PROXY_BASE_DOMAIN;
+
+// Track which WebSockets are subscribed to each session
+const sessionSubscribers = new Map<string, Set<object>>();
 if (!PROXY_BASE_DOMAIN) throw new Error("PROXY_BASE_DOMAIN must be defined");
 
 export interface Auth {
@@ -151,29 +150,49 @@ const handlers: SchemaHandlers<Schema, Auth> = {
   },
   sessionBrowserStream: {
     getSnapshot: async ({ params }) => {
-      const state = await browserStateManager.getState(params.uuid);
-
-      if (!state) {
-        return {
-          desiredState: "stopped" as const,
-          actualState: "stopped" as const,
-          streamPort: undefined,
-          errorMessage: undefined,
-        };
-      }
-
+      const snapshot = await browserSessionService.getSnapshot(params.uuid);
       return {
-        desiredState: state.desiredState,
-        actualState: state.actualState,
-        streamPort: state.streamPort ?? undefined,
-        errorMessage: state.errorMessage ?? undefined,
+        desiredState: snapshot.desiredState,
+        actualState: snapshot.actualState,
+        streamPort: snapshot.streamPort ?? undefined,
+        errorMessage: snapshot.errorMessage ?? undefined,
       };
     },
-    onSubscribe: ({ params }) => {
-      subscribeToBrowserSession(params.uuid);
+    onSubscribe: ({ params, ws }) => {
+      const sessionId = params.uuid;
+
+      if (!sessionSubscribers.has(sessionId)) {
+        sessionSubscribers.set(sessionId, new Set());
+      }
+      const subscribers = sessionSubscribers.get(sessionId)!;
+
+      // Skip if this ws is already subscribed
+      if (subscribers.has(ws)) {
+        console.log(
+          `[BrowserStream] Already subscribed: sessionId=${sessionId}, count=${subscribers.size}`,
+        );
+        return;
+      }
+
+      subscribers.add(ws);
+      console.log(`[BrowserStream] Subscribe: sessionId=${sessionId}, count=${subscribers.size}`);
+
+      browserSessionService.subscribe(sessionId, { subscriberCount: subscribers.size });
     },
-    onUnsubscribe: ({ params }) => {
-      unsubscribeFromBrowserSession(params.uuid);
+    onUnsubscribe: ({ params, ws }) => {
+      const sessionId = params.uuid;
+      const subscribers = sessionSubscribers.get(sessionId);
+
+      if (!subscribers || !subscribers.has(ws)) {
+        console.log(`[BrowserStream] Unsubscribe (not tracked): sessionId=${sessionId}`);
+        return;
+      }
+
+      subscribers.delete(ws);
+      const count = subscribers.size;
+      console.log(`[BrowserStream] Unsubscribe: sessionId=${sessionId}, count=${count}`);
+
+      browserSessionService.unsubscribe(sessionId, { subscriberCount: count });
     },
   },
 };

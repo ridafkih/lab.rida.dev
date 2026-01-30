@@ -21,6 +21,10 @@ WORKDIR /app/packages/browser
 ENV AGENT_BROWSER_SOCKET_DIR=/tmp/agent-browser-socket
 ENV AGENT_BROWSER_STREAM_PORT=9223
 ENV AGENT_BROWSER_SESSION=default
+ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
+
+# Symlink Playwright browsers to expected location
+RUN mkdir -p /root/.cache && ln -s /ms-playwright /root/.cache/ms-playwright
 
 EXPOSE 9223
 

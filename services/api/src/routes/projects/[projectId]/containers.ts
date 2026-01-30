@@ -24,7 +24,7 @@ const POST: RouteHandler = async (request, params) => {
     })
     .returning();
 
-  if (body.ports && Array.isArray(body.ports)) {
+  if (body.ports && Array.isArray(body.ports) && body.ports.length > 0) {
     await db.insert(containerPorts).values(
       body.ports.map((port: number) => ({
         containerId: container.id,

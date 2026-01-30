@@ -16,6 +16,7 @@ export const browserSessions = pgTable("browser_sessions", {
     .notNull()
     .default("stopped"),
   streamPort: integer("stream_port"),
+  lastUrl: text("last_url"),
   lastHeartbeat: timestamp("last_heartbeat", { withTimezone: true }),
   errorMessage: text("error_message"),
   retryCount: integer("retry_count").notNull().default(0),

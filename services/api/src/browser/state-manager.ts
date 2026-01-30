@@ -11,6 +11,7 @@ export interface BrowserSessionState {
   desiredState: DesiredState;
   actualState: ActualState;
   streamPort: number | null;
+  lastUrl: string | null;
   lastHeartbeat: Date | null;
   errorMessage: string | null;
   retryCount: number;
@@ -31,6 +32,7 @@ export class BrowserStateManager {
       desiredState: session.desiredState as DesiredState,
       actualState: session.actualState as ActualState,
       streamPort: session.streamPort,
+      lastUrl: session.lastUrl,
       lastHeartbeat: session.lastHeartbeat,
       errorMessage: session.errorMessage,
       retryCount: session.retryCount,
@@ -62,6 +64,7 @@ export class BrowserStateManager {
       desiredState: session.desiredState as DesiredState,
       actualState: session.actualState as ActualState,
       streamPort: session.streamPort,
+      lastUrl: session.lastUrl,
       lastHeartbeat: session.lastHeartbeat,
       errorMessage: session.errorMessage,
       retryCount: session.retryCount,
@@ -105,6 +108,7 @@ export class BrowserStateManager {
       desiredState: session.desiredState as DesiredState,
       actualState: session.actualState as ActualState,
       streamPort: session.streamPort,
+      lastUrl: session.lastUrl,
       lastHeartbeat: session.lastHeartbeat,
       errorMessage: session.errorMessage,
       retryCount: session.retryCount,
@@ -129,6 +133,7 @@ export class BrowserStateManager {
       desiredState: session.desiredState as DesiredState,
       actualState: session.actualState as ActualState,
       streamPort: session.streamPort,
+      lastUrl: session.lastUrl,
       lastHeartbeat: session.lastHeartbeat,
       errorMessage: session.errorMessage,
       retryCount: session.retryCount,
@@ -153,6 +158,7 @@ export class BrowserStateManager {
         desiredState: session.desiredState as DesiredState,
         actualState: session.actualState as ActualState,
         streamPort: session.streamPort,
+        lastUrl: session.lastUrl,
         lastHeartbeat: session.lastHeartbeat,
         errorMessage: session.errorMessage,
         retryCount: session.retryCount,
@@ -168,6 +174,21 @@ export class BrowserStateManager {
     if (!state) return null;
 
     return this.setDesiredState(sessionId, "stopped");
+  }
+
+  async getLastUrl(sessionId: string): Promise<string | null> {
+    const state = await this.getState(sessionId);
+    return state?.lastUrl ?? null;
+  }
+
+  async setLastUrl(sessionId: string, lastUrl: string | null): Promise<void> {
+    await db
+      .update(browserSessions)
+      .set({
+        lastUrl,
+        updatedAt: new Date(),
+      })
+      .where(eq(browserSessions.sessionId, sessionId));
   }
 
   async delete(sessionId: string): Promise<void> {

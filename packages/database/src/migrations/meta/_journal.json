@@ -43,6 +43,13 @@
       "when": 1769729591784,
       "tag": "0005_careful_steve_rogers",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1769739338579,
+      "tag": "0006_amazing_firedrake",
+      "breakpoints": true
     }
   ]
 }
