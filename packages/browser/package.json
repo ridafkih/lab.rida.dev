@@ -7,7 +7,9 @@
     "types": "tsc --noEmit"
   },
   "dependencies": {
-    "agent-browser": "^0.8.4"
+    "@lab/database": "workspace:*",
+    "agent-browser": "^0.8.4",
+    "drizzle-orm": "^0.38.0"
   },
   "devDependencies": {
     "bun-types": "^1.2.11",

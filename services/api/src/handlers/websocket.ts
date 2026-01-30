@@ -13,7 +13,11 @@ import { containerPorts } from "@lab/database/schema/container-ports";
 import { eq } from "drizzle-orm";
 import { publisher } from "../publisher";
 import { opencode } from "../opencode";
-import { browserClient, ensureBrowserSession } from "../browser";
+import {
+  subscribeToBrowserSession,
+  unsubscribeFromBrowserSession,
+  browserStateManager,
+} from "../browser";
 
 const PROXY_BASE_DOMAIN = process.env.PROXY_BASE_DOMAIN;
 if (!PROXY_BASE_DOMAIN) throw new Error("PROXY_BASE_DOMAIN must be defined");
@@ -147,18 +151,29 @@ const handlers: SchemaHandlers<Schema, Auth> = {
   },
   sessionBrowserStream: {
     getSnapshot: async ({ params }) => {
-      if (!browserClient) {
-        return { ready: false };
+      const state = await browserStateManager.getState(params.uuid);
+
+      if (!state) {
+        return {
+          desiredState: "stopped" as const,
+          actualState: "stopped" as const,
+          streamPort: undefined,
+          errorMessage: undefined,
+        };
       }
-      const streamPort = await browserClient.getStreamPort(params.uuid);
+
       return {
-        ready: streamPort !== null,
-        streamPort: streamPort ?? undefined,
+        desiredState: state.desiredState,
+        actualState: state.actualState,
+        streamPort: state.streamPort ?? undefined,
+        errorMessage: state.errorMessage ?? undefined,
       };
     },
     onSubscribe: ({ params }) => {
-      // Start browser if not running - callback will publish ready state
-      ensureBrowserSession(params.uuid);
+      subscribeToBrowserSession(params.uuid);
+    },
+    onUnsubscribe: ({ params }) => {
+      unsubscribeFromBrowserSession(params.uuid);
     },
   },
 };

@@ -58,6 +58,13 @@ type ContainerInfo = {
   urls: { port: number; url: string }[];
 };
 
+type BrowserStreamState = {
+  desiredState: "running" | "stopped";
+  actualState: "pending" | "starting" | "running" | "stopping" | "stopped" | "error";
+  streamPort?: number;
+  errorMessage?: string;
+};
+
 type SessionViewProps = {
   messages: MessageState[];
   reviewFiles: ReviewableFile[];
@@ -78,7 +85,12 @@ type SessionViewProps = {
   containers?: ContainerInfo[];
   labSessionId: string;
   wsBaseUrl?: string;
-  browserStreamReady?: boolean;
+  browserStreamState?: BrowserStreamState;
+};
+
+const defaultBrowserStreamState: BrowserStreamState = {
+  desiredState: "stopped",
+  actualState: "stopped",
 };
 
 export function SessionView({
@@ -101,7 +113,7 @@ export function SessionView({
   containers = [],
   labSessionId,
   wsBaseUrl,
-  browserStreamReady = false,
+  browserStreamState = defaultBrowserStreamState,
 }: SessionViewProps) {
   const [inputValue, setInputValue] = useState("");
   const [activeFrameTab, setActiveFrameTab] = useState<string | undefined>(undefined);
@@ -334,7 +346,7 @@ export function SessionView({
                 sessionId={labSessionId}
                 wsBaseUrl={wsBaseUrl}
                 className="w-full max-w-4xl"
-                enabled={browserStreamReady}
+                browserStreamState={browserStreamState}
               />
             </div>
           ) : (

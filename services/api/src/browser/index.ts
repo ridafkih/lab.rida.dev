@@ -1,37 +1,18 @@
 import { BrowserClient } from "./client";
+import { browserStateManager } from "./state-manager";
+import { clearFrameCache } from "../handlers/browser-stream";
 
 const BROWSER_API_URL = process.env.BROWSER_API_URL;
-const API_INTERNAL_URL = process.env.API_INTERNAL_URL ?? "http://api:3001";
-const CLEANUP_DELAY_MS = 10000; // Wait 10 seconds before cleanup
+const CLEANUP_DELAY_MS = parseInt(process.env.BROWSER_CLEANUP_DELAY_MS ?? "10000", 10);
 
 export const browserClient = BROWSER_API_URL ? new BrowserClient(BROWSER_API_URL) : null;
 
 // Track subscriber counts and pending cleanups per session
+// These are still in-memory because they track active WebSocket connections
 const subscriberCounts = new Map<string, number>();
 const pendingCleanups = new Map<string, ReturnType<typeof setTimeout>>();
 
-export async function ensureBrowserSession(sessionId: string): Promise<void> {
-  if (!browserClient) return;
-
-  try {
-    const callbackUrl = `${API_INTERNAL_URL}/internal/browser-ready`;
-    await browserClient.startSession(sessionId, { callbackUrl });
-  } catch (err) {
-    console.warn(`Failed to start browser session ${sessionId}:`, err);
-  }
-}
-
-export async function cleanupBrowserSession(sessionId: string): Promise<void> {
-  if (!browserClient) return;
-
-  try {
-    await browserClient.stopSession(sessionId);
-  } catch (err) {
-    console.warn(`Failed to stop browser session ${sessionId}:`, err);
-  }
-}
-
-export function subscribeToBrowserSession(sessionId: string): void {
+export async function subscribeToBrowserSession(sessionId: string): Promise<void> {
   // Cancel any pending cleanup
   const pendingCleanup = pendingCleanups.get(sessionId);
   if (pendingCleanup) {
@@ -42,13 +23,17 @@ export function subscribeToBrowserSession(sessionId: string): void {
   const count = subscriberCounts.get(sessionId) ?? 0;
   subscriberCounts.set(sessionId, count + 1);
 
-  // Start browser on first subscriber
+  // Set desired state to running on first subscriber
   if (count === 0) {
-    ensureBrowserSession(sessionId);
+    try {
+      await browserStateManager.subscribe(sessionId);
+    } catch (err) {
+      console.warn(`Failed to subscribe to browser session ${sessionId}:`, err);
+    }
   }
 }
 
-export function unsubscribeFromBrowserSession(sessionId: string): void {
+export async function unsubscribeFromBrowserSession(sessionId: string): Promise<void> {
   const count = subscriberCounts.get(sessionId) ?? 0;
   if (count <= 0) return;
 
@@ -59,11 +44,18 @@ export function unsubscribeFromBrowserSession(sessionId: string): void {
   if (newCount === 0) {
     subscriberCounts.delete(sessionId);
 
-    const timeout = setTimeout(() => {
+    const timeout = setTimeout(async () => {
       pendingCleanups.delete(sessionId);
-      cleanupBrowserSession(sessionId);
+      clearFrameCache(sessionId);
+      try {
+        await browserStateManager.unsubscribe(sessionId);
+      } catch (err) {
+        console.warn(`Failed to unsubscribe from browser session ${sessionId}:`, err);
+      }
     }, CLEANUP_DELAY_MS);
 
     pendingCleanups.set(sessionId, timeout);
   }
 }
+
+export { browserStateManager } from "./state-manager";

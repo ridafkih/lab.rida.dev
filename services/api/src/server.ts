@@ -59,11 +59,11 @@ const combinedWebsocketHandler = {
       websocketHandler.message(ws, message);
     }
   },
-  close(ws: any, code: number, reason: string) {
+  close(ws: any) {
     if (isBrowserStreamData(ws.data)) {
       browserStreamHandler.close(ws);
     } else {
-      websocketHandler.close(ws, code, reason);
+      websocketHandler.close(ws);
     }
   },
 };

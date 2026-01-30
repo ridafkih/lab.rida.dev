@@ -34,6 +34,10 @@
     "./schema/session-containers": {
       "types": "./src/schema/session-containers.ts",
       "default": "./src/schema/session-containers.ts"
+    },
+    "./schema/browser-sessions": {
+      "types": "./src/schema/browser-sessions.ts",
+      "default": "./src/schema/browser-sessions.ts"
     }
   },
   "scripts": {

@@ -6,6 +6,13 @@ import {
 
 const BROWSER_WS_HOST = process.env.BROWSER_WS_HOST ?? "browser";
 
+// Cache last frame per session
+const lastFrameCache = new Map<string, string>();
+
+export function clearFrameCache(sessionId: string): void {
+  lastFrameCache.delete(sessionId);
+}
+
 export async function handleBrowserStreamUpgrade(
   request: Request,
   server: any,
@@ -56,19 +63,32 @@ async function connectToBrowser(ws: any, sessionId: string): Promise<void> {
 
   ws.data.streamPort = port;
 
+  // Send cached frame immediately if available
+  const cachedFrame = lastFrameCache.get(sessionId);
+  if (cachedFrame) {
+    ws.send(cachedFrame);
+  }
+
   const browserWs = new WebSocket(`ws://${BROWSER_WS_HOST}:${port}`);
-  browserWs.onmessage = (event) => ws.send(event.data);
+  browserWs.onmessage = (event) => {
+    const data = event.data.toString();
+    // Cache frame messages
+    if (data.includes('"type":"frame"')) {
+      lastFrameCache.set(sessionId, data);
+    }
+    ws.send(event.data);
+  };
   browserWs.onclose = () => ws.close();
   browserWs.onerror = () => ws.close();
   ws.data.browserWs = browserWs;
 }
 
 export const browserStreamHandler = {
-  open(ws: any) {
+  async open(ws: any) {
     const { sessionId } = ws.data as BrowserStreamData;
 
     // Track this connection
-    subscribeToBrowserSession(sessionId);
+    await subscribeToBrowserSession(sessionId);
 
     // Connect to browser asynchronously
     connectToBrowser(ws, sessionId);
@@ -82,6 +102,8 @@ export const browserStreamHandler = {
     browserWs?.close();
 
     // Untrack this connection - will cleanup after delay if no clients remain
-    unsubscribeFromBrowserSession(sessionId);
+    unsubscribeFromBrowserSession(sessionId).catch((err) => {
+      console.warn(`Failed to unsubscribe from browser session ${sessionId}:`, err);
+    });
   },
 };

@@ -1,4 +1,4 @@
-import { setSession, getSocketDir } from "agent-browser";
+import { getSocketDir } from "agent-browser";
 import {
   startSessionDaemon,
   stopSessionDaemon,
@@ -8,13 +8,23 @@ import {
   getSessionPort,
   getSessionStreamPort,
 } from "./daemon-manager";
+import { reconciler } from "./reconciler";
 
 const API_PORT = parseInt(process.env.BROWSER_API_PORT ?? "80", 10);
-const STREAM_PORT = parseInt(process.env.AGENT_BROWSER_STREAM_PORT ?? "9223", 10);
+const DEFAULT_STREAM_PORT = parseInt(
+  process.env.AGENT_BROWSER_STREAM_PORT ?? "9223",
+  10,
+);
+const ENABLE_RECONCILER = process.env.ENABLE_RECONCILER !== "false";
 
-setSession("default");
 console.log(`Socket directory: ${getSocketDir()}`);
-await startSessionDaemon("default", { streamPort: STREAM_PORT });
+
+// Start default daemon for standalone opencode container (not session-specific)
+await startSessionDaemon("default", { streamPort: DEFAULT_STREAM_PORT });
+
+if (ENABLE_RECONCILER) {
+  await reconciler.start();
+}
 
 Bun.serve({
   port: API_PORT,
@@ -55,15 +65,25 @@ Bun.serve({
 
     if (req.method === "GET" && path.match(/^\/sessions\/[^/]+\/stream-port$/)) {
       const sessionId = path.split("/")[2];
+      if (!sessionId) {
+        return Response.json({ error: "Session ID required" }, { status: 400 });
+      }
       const streamPort = getSessionStreamPort(sessionId);
       if (!streamPort) {
         return Response.json({ error: "Session not found" }, { status: 404 });
       }
-      return Response.json({ sessionId, streamPort, ready: isSessionReady(sessionId) });
+      return Response.json({
+        sessionId,
+        streamPort,
+        ready: isSessionReady(sessionId),
+      });
     }
 
     if (req.method === "GET" && path.startsWith("/sessions/")) {
       const sessionId = path.split("/")[2];
+      if (!sessionId) {
+        return Response.json({ error: "Session ID required" }, { status: 400 });
+      }
       return Response.json({
         sessionId,
         active: isSessionActive(sessionId),
@@ -81,5 +101,11 @@ Bun.serve({
 
 console.log(`Browser API listening on port ${API_PORT}`);
 
-process.on("SIGTERM", () => process.exit(0));
-process.on("SIGINT", () => process.exit(0));
+function gracefulShutdown() {
+  console.log("Shutting down...");
+  reconciler.stop();
+  process.exit(0);
+}
+
+process.on("SIGTERM", gracefulShutdown);
+process.on("SIGINT", gracefulShutdown);

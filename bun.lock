@@ -60,7 +60,9 @@
       "name": "@lab/browser",
       "version": "0.1.0",
       "dependencies": {
+        "@lab/database": "workspace:*",
         "agent-browser": "^0.8.4",
+        "drizzle-orm": "^0.38.0",
       },
       "devDependencies": {
         "bun-types": "^1.2.11",

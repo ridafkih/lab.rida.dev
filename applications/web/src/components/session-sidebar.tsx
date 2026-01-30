@@ -54,10 +54,17 @@ type ContainerInfo = {
   urls: { port: number; url: string }[];
 };
 
+type BrowserStreamState = {
+  desiredState: "running" | "stopped";
+  actualState: "pending" | "starting" | "running" | "stopping" | "stopped" | "error";
+  streamPort?: number;
+  errorMessage?: string;
+};
+
 type SessionSidebarProps = {
   sessionId: string;
   wsBaseUrl: string;
-  browserStreamReady?: boolean;
+  browserStreamState?: BrowserStreamState;
   branches: Branch[];
   tasks: Task[];
   links: Link[];
@@ -67,10 +74,15 @@ type SessionSidebarProps = {
   onDismissFile: (path: string) => void;
 };
 
+const defaultBrowserStreamState: BrowserStreamState = {
+  desiredState: "stopped",
+  actualState: "stopped",
+};
+
 export function SessionSidebar({
   sessionId,
   wsBaseUrl,
-  browserStreamReady = false,
+  browserStreamState = defaultBrowserStreamState,
   branches,
   tasks,
   links,
@@ -207,7 +219,11 @@ export function SessionSidebar({
           <Copy size="xs" muted className="px-2 py-1.5 block">
             Stream
           </Copy>
-          <BrowserStream sessionId={sessionId} wsBaseUrl={wsBaseUrl} enabled={browserStreamReady} />
+          <BrowserStream
+            sessionId={sessionId}
+            wsBaseUrl={wsBaseUrl}
+            browserStreamState={browserStreamState}
+          />
         </div>
 
         <LogsSection sources={logSources} />

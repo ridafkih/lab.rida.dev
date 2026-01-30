@@ -1,4 +1,5 @@
 import { publisher } from "../publisher";
+import { browserStateManager } from "../browser";
 
 interface BrowserReadyPayload {
   sessionId: string;
@@ -16,13 +17,20 @@ export async function handleBrowserReadyCallback(request: Request): Promise<Resp
     }
 
     if (ready) {
-      // Notify all subscribers that the browser is ready
+      // Update state to running in database
+      const state = await browserStateManager.setActualState(sessionId, "running", {
+        streamPort: port,
+      });
+
+      // Publish the updated state to all subscribers
       publisher.publishSnapshot(
         "sessionBrowserStream",
         { uuid: sessionId },
         {
-          ready: true,
-          streamPort: port,
+          desiredState: state?.desiredState ?? "running",
+          actualState: state?.actualState ?? "running",
+          streamPort: state?.streamPort ?? port,
+          errorMessage: state?.errorMessage ?? undefined,
         },
       );
     }

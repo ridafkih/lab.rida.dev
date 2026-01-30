@@ -75,12 +75,12 @@ export default function SessionPage() {
         }))}
         labSessionId={sessionId}
         wsBaseUrl={process.env.NEXT_PUBLIC_WS_URL}
-        browserStreamReady={browserStream.ready}
+        browserStreamState={browserStream}
       />
       <SessionSidebar
         sessionId={sessionId}
         wsBaseUrl={process.env.NEXT_PUBLIC_WS_URL ?? ""}
-        browserStreamReady={browserStream.ready}
+        browserStreamState={browserStream}
         branches={branches}
         tasks={[]}
         links={links}

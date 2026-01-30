@@ -172,13 +172,26 @@ export const schema = defineSchema({
     sessionBrowserStream: defineChannel({
       path: "session/{uuid}/browser-stream",
       snapshot: z.object({
-        ready: z.boolean(),
+        desiredState: z.enum(["running", "stopped"]),
+        actualState: z.enum([
+          "pending",
+          "starting",
+          "running",
+          "stopping",
+          "stopped",
+          "error",
+        ]),
         streamPort: z.number().optional(),
+        errorMessage: z.string().optional(),
       }),
-      default: { ready: false },
+      default: { desiredState: "stopped", actualState: "stopped" },
       delta: z.object({
-        ready: z.boolean(),
+        desiredState: z.enum(["running", "stopped"]).optional(),
+        actualState: z
+          .enum(["pending", "starting", "running", "stopping", "stopped", "error"])
+          .optional(),
         streamPort: z.number().optional(),
+        errorMessage: z.string().optional(),
       }),
     }),
   },

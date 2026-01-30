@@ -245,7 +245,7 @@ export function createWebSocketHandler<S extends Schema, TAuth>(
               params: match.params,
               ws,
             };
-            handler.onUnsubscribe(context).catch((err) => {
+            Promise.resolve(handler.onUnsubscribe(context)).catch((err: unknown) => {
               console.warn("Error in onUnsubscribe handler during close:", err);
             });
           }
