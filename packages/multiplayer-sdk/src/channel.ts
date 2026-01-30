@@ -1,117 +1,42 @@
-export type ExtractParams<T extends string> =
-  T extends `${infer _Start}{${infer Param}}${infer Rest}` ? Param | ExtractParams<Rest> : never;
+const UUID_PLACEHOLDER = "{uuid}";
 
-export type ParamsFromPath<T extends string> =
-  ExtractParams<T> extends never ? {} : { [K in ExtractParams<T>]: string };
-
-export type HasParams<T extends string> = ExtractParams<T> extends never ? false : true;
-
-function assertString(value: unknown): string {
-  if (typeof value !== "string") {
-    throw new Error(`Expected string, got ${typeof value}`);
-  }
-  return value;
+/**
+ * Replace {uuid} in a template path with the actual value.
+ * @example resolvePath("session/{uuid}/meta", { uuid: "abc" }) => "session/abc/meta"
+ */
+export function resolvePath(template: string, params: Record<string, string>): string {
+  const uuid = params.uuid;
+  if (uuid === undefined) return template;
+  return template.replace(UUID_PLACEHOLDER, uuid);
 }
 
-function validateParams(template: string, params: Record<string, string>): Record<string, string> {
-  const expectedKeys = getParamNames(template);
-
-  for (const key of expectedKeys) {
-    if (!(key in params)) {
-      throw new Error(`Missing param: ${key}`);
-    }
-    if (typeof params[key] !== "string") {
-      throw new Error(`Param ${key} must be a string`);
-    }
-  }
-
-  const result: Record<string, string> = {};
-  for (const key of expectedKeys) {
-    const value = params[key];
-    if (value === undefined) {
-      throw new Error(`Missing param value: ${key}`);
-    }
-    result[key] = value;
-  }
-
-  return result;
-}
-
-export function resolvePath<T extends string>(template: T, params: ParamsFromPath<T>): string {
-  let result: string = template;
-  for (const [key, value] of Object.entries(params)) {
-    result = result.replace(`{${key}}`, assertString(value));
-  }
-  return result;
-}
-
+/**
+ * Extract params from a resolved path by matching against a template.
+ * Returns null if the resolved path doesn't match the template.
+ * @example parsePath("session/{uuid}/meta", "session/abc/meta") => { uuid: "abc" }
+ */
 export function parsePath(template: string, resolved: string): Record<string, string> | null {
-  const paramNames: string[] = [];
-  let regexStr = "^";
-
-  let remaining: string = template;
-  while (remaining.length > 0) {
-    const paramStart = remaining.indexOf("{");
-    if (paramStart === -1) {
-      regexStr += escapeRegex(remaining);
-      break;
-    }
-
-    if (paramStart > 0) {
-      regexStr += escapeRegex(remaining.slice(0, paramStart));
-    }
-
-    const paramEnd = remaining.indexOf("}", paramStart);
-    if (paramEnd === -1) {
-      return null;
-    }
-
-    const paramName = remaining.slice(paramStart + 1, paramEnd);
-    paramNames.push(paramName);
-    regexStr += "([^/]+)";
-
-    remaining = remaining.slice(paramEnd + 1);
+  if (!template.includes(UUID_PLACEHOLDER)) {
+    return resolved === template ? {} : null;
   }
 
-  regexStr += "$";
+  const [prefix, suffix] = template.split(UUID_PLACEHOLDER);
+  if (prefix === undefined || suffix === undefined) return null;
 
-  const regex = new RegExp(regexStr);
-  const match = resolved.match(regex);
-
-  if (!match) {
+  if (!resolved.startsWith(prefix) || !resolved.endsWith(suffix)) {
     return null;
   }
 
-  const params: Record<string, string> = {};
-  for (let i = 0; i < paramNames.length; i++) {
-    const name = paramNames[i];
-    const value = match[i + 1];
-    if (name === undefined || value === undefined) {
-      return null;
-    }
-    params[name] = value;
-  }
+  const uuidLength = resolved.length - prefix.length - suffix.length;
+  if (uuidLength <= 0) return null;
 
-  return validateParams(template, params);
-}
+  const uuid = resolved.slice(prefix.length, prefix.length + uuidLength);
 
-export function getParamNames(template: string): string[] {
-  const names: string[] = [];
-  const regex = /\{([^}]+)\}/g;
-  let match;
-  while ((match = regex.exec(template)) !== null) {
-    const name = match[1];
-    if (name !== undefined) {
-      names.push(name);
-    }
-  }
-  return names;
+  if (uuid.includes("/")) return null;
+
+  return { uuid };
 }
 
 export function hasParams(template: string): boolean {
   return template.includes("{");
-}
-
-function escapeRegex(str: string): string {
-  return str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }

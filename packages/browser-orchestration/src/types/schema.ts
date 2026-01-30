@@ -43,14 +43,3 @@ export const SessionSnapshot = z.object({
   subscriberCount: z.number().int().nonnegative(),
 });
 export type SessionSnapshot = z.infer<typeof SessionSnapshot>;
-
-export const PortRange = z.object({
-  start: z.number().int().positive(),
-  end: z.number().int().positive(),
-});
-export type PortRange = z.infer<typeof PortRange>;
-
-export const DEFAULT_PORT_RANGE: PortRange = {
-  start: 9224,
-  end: 9323,
-};

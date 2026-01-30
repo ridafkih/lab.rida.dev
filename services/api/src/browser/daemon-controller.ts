@@ -8,17 +8,24 @@ import {
   navigationFailed,
 } from "@lab/browser-orchestration";
 
-export const start = async (baseUrl: string, sessionId: string, port: number): Promise<void> => {
+export const start = async (
+  baseUrl: string,
+  sessionId: string,
+  url?: string,
+): Promise<{ port: number }> => {
   const response = await fetch(`${baseUrl}/daemons/${sessionId}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ streamPort: port }),
+    body: JSON.stringify({ url }),
   });
 
   if (!response.ok) {
     const body = await response.text();
     throw daemonStartFailed(sessionId, `HTTP ${response.status}: ${body}`);
   }
+
+  const data = await response.json();
+  return { port: data.port };
 };
 
 export const stop = async (baseUrl: string, sessionId: string): Promise<void> => {

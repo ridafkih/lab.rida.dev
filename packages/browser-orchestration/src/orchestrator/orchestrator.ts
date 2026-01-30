@@ -1,7 +1,6 @@
 import { type BrowserSessionState, type SessionSnapshot } from "../types/schema";
 import { type StateStore } from "./state-store";
 import { type DaemonController } from "./daemon-controller";
-import { type PortAllocator } from "./port-allocator";
 import { createReconciler } from "./reconciler";
 import { createReconcilerLoop, type ReconcilerLoop } from "./reconciler-loop";
 import { createSessionManager, type SessionManager } from "./session-manager";
@@ -32,7 +31,6 @@ export interface Orchestrator {
 export const createOrchestrator = (
   stateStore: StateStore,
   daemonController: DaemonController,
-  portAllocator: PortAllocator,
   config: OrchestratorConfig,
 ): Orchestrator => {
   const sessions: SessionManager = createSessionManager();
@@ -58,7 +56,7 @@ export const createOrchestrator = (
     },
   };
 
-  const reconciler = createReconciler(notifyingStateStore, daemonController, portAllocator, {
+  const reconciler = createReconciler(notifyingStateStore, daemonController, {
     maxRetries: config.maxRetries,
   });
 

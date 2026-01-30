@@ -6,7 +6,6 @@ export * from "./types/frame-receiver";
 export * from "./protocol/commands";
 export * from "./protocol/responses";
 
-export * from "./orchestrator/port-allocator";
 export * from "./orchestrator/state-store";
 export * from "./orchestrator/daemon-controller";
 export * from "./orchestrator/reconciler";

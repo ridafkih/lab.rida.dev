@@ -1,14 +1,6 @@
 export { defineChannel, defineSchema } from "./schema";
 
-export {
-  resolvePath,
-  parsePath,
-  getParamNames,
-  hasParams,
-  type ExtractParams,
-  type ParamsFromPath,
-  type HasParams,
-} from "./channel";
+export { resolvePath, parsePath, hasParams } from "./channel";
 
 export type {
   ChannelConfig,

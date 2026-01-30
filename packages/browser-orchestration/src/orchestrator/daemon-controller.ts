@@ -1,7 +1,7 @@
 import { type DaemonStatus } from "../types/schema";
 
 export interface DaemonController {
-  start(sessionId: string, port: number, url?: string): Promise<void>;
+  start(sessionId: string, url?: string): Promise<{ port: number }>;
   stop(sessionId: string): Promise<void>;
   navigate(sessionId: string, url: string): Promise<void>;
   getStatus(sessionId: string): Promise<DaemonStatus | null>;

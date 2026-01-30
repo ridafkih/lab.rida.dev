@@ -53,7 +53,7 @@ export const bootstrapBrowserService = async (
   const baseUrl = config.browserApiUrl;
 
   const daemonController: DaemonController = {
-    start: (sessionId, port) => start(baseUrl, sessionId, port),
+    start: (sessionId, url) => start(baseUrl, sessionId, url),
     stop: (sessionId) => stop(baseUrl, sessionId),
     navigate: (sessionId, url) => navigate(baseUrl, sessionId, url),
     getStatus: (sessionId) => getStatus(baseUrl, sessionId),

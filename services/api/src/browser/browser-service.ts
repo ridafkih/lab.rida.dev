@@ -6,7 +6,6 @@ import {
   type DaemonController,
   type FrameReceiver,
   createOrchestrator,
-  createPortAllocator,
 } from "@lab/browser-orchestration";
 import { createFrameReceiver } from "./frame-receiver";
 
@@ -72,11 +71,7 @@ export const createBrowserService = async (
     frameReceivers.delete(sessionId);
   };
 
-  const sessions = await stateStore.getAllSessions();
-  const allocatedPorts = sessions.map((s) => s.streamPort).filter((p): p is number => p !== null);
-  const portAllocator = createPortAllocator(undefined, allocatedPorts);
-
-  const orchestrator = createOrchestrator(stateStore, daemonController, portAllocator, {
+  const orchestrator = createOrchestrator(stateStore, daemonController, {
     maxRetries,
     reconcileIntervalMs,
     cleanupDelayMs,

@@ -7,7 +7,6 @@ export const BrowserErrorKind = z.enum([
   "ConnectionFailed",
   "NavigationFailed",
   "StateTransitionInvalid",
-  "PortAllocationFailed",
   "SessionNotFound",
   "ValidationFailed",
   "Timeout",
@@ -43,9 +42,6 @@ export const navigationFailed = (sessionId: string, url: string, reason: string)
 
 export const stateTransitionInvalid = (sessionId: string, from: string, to: string) =>
   new BrowserError("StateTransitionInvalid", `Invalid transition from ${from} to ${to}`, sessionId);
-
-export const portAllocationFailed = (reason: string) =>
-  new BrowserError("PortAllocationFailed", reason);
 
 export const sessionNotFound = (sessionId: string) =>
   new BrowserError("SessionNotFound", `Session ${sessionId} not found`, sessionId);

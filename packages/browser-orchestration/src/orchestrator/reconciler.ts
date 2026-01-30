@@ -2,7 +2,6 @@ import { type BrowserSessionState, type CurrentState } from "../types/schema";
 import { computeRequiredAction, type Action } from "../types/state";
 import { type StateStore, type StateStoreOptions } from "./state-store";
 import { type DaemonController } from "./daemon-controller";
-import { type PortAllocator } from "./port-allocator";
 
 export interface ReconcilerConfig {
   maxRetries: number;
@@ -16,7 +15,6 @@ export interface Reconciler {
 export const createReconciler = (
   stateStore: StateStore,
   daemonController: DaemonController,
-  portAllocator: PortAllocator,
   config: ReconcilerConfig,
 ): Reconciler => {
   const updateCurrentState = (
@@ -28,7 +26,7 @@ export const createReconciler = (
   };
 
   const startSession = async (session: BrowserSessionState): Promise<void> => {
-    const { sessionId, retryCount, streamPort: existingPort } = session;
+    const { sessionId, retryCount } = session;
 
     if (retryCount >= config.maxRetries) return;
 
@@ -37,14 +35,10 @@ export const createReconciler = (
       errorMessage: null,
     });
 
-    if (existingPort !== null) portAllocator.release(existingPort);
-    const port = portAllocator.allocate();
-    await updateCurrentState(sessionId, "starting", { streamPort: port });
-
     try {
-      await daemonController.start(sessionId, port, session.lastUrl ?? undefined);
+      const { port } = await daemonController.start(sessionId, session.lastUrl ?? undefined);
+      await updateCurrentState(sessionId, "starting", { streamPort: port });
     } catch (error) {
-      portAllocator.release(port);
       await updateCurrentState(sessionId, "stopped", {
         streamPort: null,
         errorMessage: error instanceof Error ? error.message : "Failed to start daemon",
@@ -53,7 +47,7 @@ export const createReconciler = (
   };
 
   const stopSession = async (session: BrowserSessionState): Promise<void> => {
-    const { sessionId, streamPort } = session;
+    const { sessionId } = session;
 
     const currentUrl = await daemonController.getCurrentUrl(sessionId);
     if (currentUrl && currentUrl !== "about:blank") {
@@ -62,10 +56,6 @@ export const createReconciler = (
 
     await updateCurrentState(sessionId, "stopping");
     await daemonController.stop(sessionId);
-
-    if (streamPort !== null) {
-      portAllocator.release(streamPort);
-    }
 
     await updateCurrentState(sessionId, "stopped", {
       streamPort: null,
@@ -106,11 +96,7 @@ export const createReconciler = (
   };
 
   const resetToStopped = async (session: BrowserSessionState): Promise<void> => {
-    const { sessionId, streamPort } = session;
-
-    if (streamPort !== null) {
-      portAllocator.release(streamPort);
-    }
+    const { sessionId } = session;
 
     await updateCurrentState(sessionId, "stopped", {
       streamPort: null,
