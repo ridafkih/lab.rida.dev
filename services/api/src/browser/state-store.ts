@@ -198,3 +198,24 @@ export const setLastUrl = async (sessionId: string, url: string | null): Promise
     throw sessionNotFound(sessionId);
   }
 };
+
+export const cleanupOrphanedSessions = async (): Promise<number> => {
+  const allBrowserSessions = await db
+    .select({ sessionId: browserSessions.sessionId })
+    .from(browserSessions);
+  const allParentSessions = await db.select({ id: sessions.id }).from(sessions);
+
+  const parentIds = new Set(allParentSessions.map((session) => session.id));
+  const orphanedIds = allBrowserSessions
+    .filter((browserSession) => !parentIds.has(browserSession.sessionId))
+    .map((browserSession) => browserSession.sessionId);
+
+  if (orphanedIds.length > 0) {
+    for (const sessionId of orphanedIds) {
+      await db.delete(browserSessions).where(eq(browserSessions.sessionId, sessionId));
+    }
+    console.log(`[StateStore] Cleaned up ${orphanedIds.length} orphaned browser session(s)`);
+  }
+
+  return orphanedIds.length;
+};

@@ -167,7 +167,9 @@ export const createWebSocketHandlers = (browserService: BrowserService) => {
         }
 
         subscribers.add(ws);
-        browserService.subscribeBrowser(sessionId);
+        browserService.subscribeBrowser(sessionId).catch((error) => {
+          console.warn(`[WebSocket] Failed to subscribe to browser ${sessionId}:`, error);
+        });
       },
       onUnsubscribe: ({ params, ws }) => {
         const sessionId = params.uuid;
@@ -178,7 +180,9 @@ export const createWebSocketHandlers = (browserService: BrowserService) => {
         }
 
         subscribers.delete(ws);
-        browserService.unsubscribeBrowser(sessionId);
+        browserService.unsubscribeBrowser(sessionId).catch((error) => {
+          console.warn(`[WebSocket] Failed to unsubscribe from browser ${sessionId}:`, error);
+        });
       },
     },
     sessionBrowserFrames: {

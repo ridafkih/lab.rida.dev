@@ -93,14 +93,14 @@ const DELETE: RouteHandler = async (_request, params, context) => {
   if (isProxyInitialized()) {
     try {
       await proxyManager.unregisterCluster(sessionId);
-    } catch {
-      try {
-        const caddyContainerName = process.env.CADDY_CONTAINER_NAME;
-        if (caddyContainerName) {
-          await docker.disconnectFromNetwork(caddyContainerName, networkName);
-        }
-      } catch {}
-    }
+    } catch {}
+  }
+
+  const caddyContainerName = process.env.CADDY_CONTAINER_NAME;
+  if (caddyContainerName) {
+    try {
+      await docker.disconnectFromNetwork(caddyContainerName, networkName);
+    } catch {}
   }
 
   await docker.removeNetwork(networkName);

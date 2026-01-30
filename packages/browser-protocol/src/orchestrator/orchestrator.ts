@@ -105,7 +105,11 @@ export const createOrchestrator = (
           async () => {
             if (sessions.getSubscriberCount(sessionId) === 0) {
               sessions.resetSession(sessionId);
-              await notifyingStateStore.setDesiredState(sessionId, "stopped");
+              try {
+                await notifyingStateStore.setDesiredState(sessionId, "stopped");
+              } catch (error) {
+                console.warn(`[Orchestrator] Failed to set desired state for ${sessionId}:`, error);
+              }
             }
           },
           config.cleanupDelayMs,
@@ -117,7 +121,11 @@ export const createOrchestrator = (
 
     async forceStop(sessionId) {
       sessions.delete(sessionId);
-      await daemonController.stop(sessionId);
+      try {
+        await daemonController.stop(sessionId);
+      } catch (error) {
+        console.warn(`[Orchestrator] Failed to stop daemon for ${sessionId}:`, error);
+      }
       await stateStore.deleteSession(sessionId);
     },
 

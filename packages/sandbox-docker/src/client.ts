@@ -175,7 +175,7 @@ export class DockerClient implements SandboxProvider {
     try {
       await this.docker.getContainer(id).stop({ t: timeout });
     } catch (err) {
-      if (!isNotRunningError(err)) throw err;
+      if (!isNotRunningError(err) && !isNotFoundError(err)) throw err;
     }
   }
 
