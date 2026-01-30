@@ -14,7 +14,10 @@ export function OpencodePartSubtask({ part }: OpencodePartSubtaskProps) {
   const [isExpanded, setIsExpanded] = useState(false);
 
   return (
-    <div className="border-b last:border-b-0 border-border bg-muted/30 min-w-0">
+    <div
+      data-opencode-part="subtask"
+      className="border-b last:border-b-0 border-border bg-muted/30 min-w-0"
+    >
       <button
         type="button"
         className="flex items-center gap-2 w-full px-4 py-2 text-muted-foreground hover:bg-muted/50 min-w-0"

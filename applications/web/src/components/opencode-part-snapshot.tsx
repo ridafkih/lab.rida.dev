@@ -10,7 +10,10 @@ interface OpencodePartSnapshotProps {
 
 export function OpencodePartSnapshot({ part }: OpencodePartSnapshotProps) {
   return (
-    <div className="flex items-center gap-2 px-4 py-1 border-b last:border-b-0 border-border bg-muted/20">
+    <div
+      data-opencode-part="snapshot"
+      className="flex items-center gap-2 px-4 py-1 border-b last:border-b-0 border-border bg-muted/20"
+    >
       <Camera className="size-3 text-muted-foreground" />
       <Copy as="span" size="xs" muted className="truncate font-mono">
         {part.snapshot}

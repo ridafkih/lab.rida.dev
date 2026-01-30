@@ -16,10 +16,17 @@ export function MessageBlock({
   variant = "user",
   isStreaming = false,
 }: MessageBlockProps) {
+  if (!children.trim()) {
+    return null;
+  }
+
   const isAssistant = variant === "assistant";
 
   return (
-    <div className={cn("border-b border-border px-4 py-3", isAssistant && "bg-muted")}>
+    <div
+      data-opencode-part="text"
+      className={cn("border-b border-border px-4 py-3", isAssistant && "bg-muted")}
+    >
       <Streamdown plugins={{ code }} components={streamdownComponents} isAnimating={isStreaming}>
         {children}
       </Streamdown>

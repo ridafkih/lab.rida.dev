@@ -10,7 +10,10 @@ interface OpencodePartRetryProps {
 
 export function OpencodePartRetry({ part }: OpencodePartRetryProps) {
   return (
-    <div className="flex items-center gap-2 px-4 py-2 border-b last:border-b-0 border-border bg-yellow-500/10">
+    <div
+      data-opencode-part="retry"
+      className="flex items-center gap-2 px-4 py-2 border-b last:border-b-0 border-border bg-yellow-500/10"
+    >
       <RefreshCw className="size-3 text-yellow-500" />
       <Copy as="span" size="xs" className="text-yellow-600 dark:text-yellow-400">
         Retry attempt {part.attempt}

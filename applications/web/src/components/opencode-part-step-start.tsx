@@ -10,7 +10,10 @@ interface OpencodePartStepStartProps {
 
 export function OpencodePartStepStart(_props: OpencodePartStepStartProps) {
   return (
-    <div className="flex items-center gap-2 px-4 py-2 border-b last:border-b-0 border-border bg-muted/30">
+    <div
+      data-opencode-part="step-start"
+      className="flex items-center gap-2 px-4 py-2 border-b last:border-b-0 border-border bg-muted/30"
+    >
       <Spinner size="xxs" />
       <Copy as="span" size="xs" muted>
         Thinking...

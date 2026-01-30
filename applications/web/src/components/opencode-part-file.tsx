@@ -23,7 +23,10 @@ export function OpencodePartFile({ part }: OpencodePartFileProps) {
   const isImage = part.mime.startsWith("image/");
 
   return (
-    <div className="border-b last:border-b-0 border-border bg-muted/30 min-w-0">
+    <div
+      data-opencode-part="file"
+      className="border-b last:border-b-0 border-border bg-muted/30 min-w-0"
+    >
       {isImage && part.url ? (
         <div className="p-4">
           <img

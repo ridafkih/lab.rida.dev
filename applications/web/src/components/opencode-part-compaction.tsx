@@ -10,7 +10,10 @@ interface OpencodePartCompactionProps {
 
 export function OpencodePartCompaction({ part }: OpencodePartCompactionProps) {
   return (
-    <div className="flex items-center gap-2 px-4 py-1 border-b last:border-b-0 border-border bg-muted/20">
+    <div
+      data-opencode-part="compaction"
+      className="flex items-center gap-2 px-4 py-1 border-b last:border-b-0 border-border bg-muted/20"
+    >
       <Minimize2 className="size-3 text-muted-foreground" />
       <Copy as="span" size="xs" muted>
         Context compacted{part.auto ? " (auto)" : ""}
