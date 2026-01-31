@@ -11,6 +11,7 @@ import { StatusIcon } from "@/components/status-icon";
 import { Hash } from "@/components/hash";
 import { TextAreaGroup } from "@/components/textarea-group";
 import { SplitPane, useSplitPane } from "@/components/split-pane";
+import { SessionInfoPane } from "@/components/session-info-pane";
 import { navItems, mockProjects } from "@/placeholder/data";
 import { mockPartsMessages } from "@/placeholder/parts";
 import { modelGroups, defaultModel } from "@/placeholder/models";
@@ -138,6 +139,49 @@ function ConversationView({ sessionId }: { sessionId: string | null }) {
   );
 }
 
+function SessionInfoView() {
+  return (
+    <SessionInfoPane.Root>
+      <SessionInfoPane.Section>
+        <SessionInfoPane.SectionHeader>Changed Files</SessionInfoPane.SectionHeader>
+        <SessionInfoPane.Empty>No changed files</SessionInfoPane.Empty>
+      </SessionInfoPane.Section>
+
+      <SessionInfoPane.Section>
+        <SessionInfoPane.SectionHeader>Branches</SessionInfoPane.SectionHeader>
+        <SessionInfoPane.Empty>No branches yet</SessionInfoPane.Empty>
+      </SessionInfoPane.Section>
+
+      <SessionInfoPane.Section>
+        <SessionInfoPane.SectionHeader>Containers</SessionInfoPane.SectionHeader>
+        <SessionInfoPane.ContainerItem name="agent-playground" status="running" />
+      </SessionInfoPane.Section>
+
+      <SessionInfoPane.Section>
+        <SessionInfoPane.SectionHeader>Tasks</SessionInfoPane.SectionHeader>
+        <SessionInfoPane.Empty>No tasks yet</SessionInfoPane.Empty>
+      </SessionInfoPane.Section>
+
+      <SessionInfoPane.Section>
+        <SessionInfoPane.SectionHeader>Links</SessionInfoPane.SectionHeader>
+        <SessionInfoPane.LinkItem
+          href="http://agent-playground:5173"
+          label="agent-playground:5173"
+        />
+      </SessionInfoPane.Section>
+
+      <SessionInfoPane.Stream>
+        <SessionInfoPane.StreamPlaceholder />
+      </SessionInfoPane.Stream>
+
+      <SessionInfoPane.Section>
+        <SessionInfoPane.SectionHeader>Logs</SessionInfoPane.SectionHeader>
+        <SessionInfoPane.Empty>No logs</SessionInfoPane.Empty>
+      </SessionInfoPane.Section>
+    </SessionInfoPane.Root>
+  );
+}
+
 function PromptArea() {
   const [prompt, setPrompt] = useState("");
   const [model, setModel] = useState(defaultModel);
@@ -194,7 +238,16 @@ export default function Page() {
             </ProjectNavigatorView>
           </SplitPane.Primary>
           <SplitPane.Secondary>
-            {(selected) => <ConversationView sessionId={selected} />}
+            {(selected) => (
+              <div className="flex h-full">
+                <div className="flex-1 min-w-0 border-r border-border">
+                  <ConversationView sessionId={selected} />
+                </div>
+                <div className="min-w-64 shrink-0">
+                  <SessionInfoView />
+                </div>
+              </div>
+            )}
           </SplitPane.Secondary>
         </SplitPane.Root>
       </div>
