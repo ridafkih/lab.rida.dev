@@ -304,13 +304,9 @@ function ChatTabContent({ messages }: { messages: MessageState[] }) {
   );
 }
 
-function FrameTabContent({ sessionId }: { sessionId: string }) {
+function FrameTabContent({ frameUrl }: { frameUrl: string | undefined }) {
   const [isLoading, setIsLoading] = useState(true);
   const [key, setKey] = useState(0);
-  const { useChannel } = useMultiplayer();
-  const containers = useChannel("sessionContainers", { uuid: sessionId });
-  const links = containers.flatMap((container) => container.urls.map(({ url }) => url));
-  const frameUrl = links[0];
 
   const handleRefresh = () => {
     setIsLoading(true);
@@ -354,15 +350,24 @@ function StreamTabContent() {
 }
 
 type SessionData = { project: Project; session: Session } | null;
+type SessionContainer = {
+  id: string;
+  name: string;
+  status: "running" | "stopped" | "starting" | "error";
+  urls: { port: number; url: string }[];
+};
 
 function ConversationView({
   sessionId,
   sessionData,
+  containers,
 }: {
   sessionId: string | null;
   sessionData: SessionData;
+  containers: SessionContainer[];
 }) {
   const { messages, sendMessage } = useAgent(sessionId ?? "");
+  const containerUrls = containers.flatMap((container) => container.urls.map(({ url }) => url));
 
   if (!sessionId) {
     return (
@@ -404,7 +409,7 @@ function ConversationView({
             <ReviewTabContent sessionId={sessionId!} />
           </Chat.TabContent>
           <Chat.TabContent value="frame">
-            <FrameTabContent sessionId={sessionId} />
+            <FrameTabContent frameUrl={containerUrls[0]} />
           </Chat.TabContent>
           <Chat.TabContent value="stream">
             <StreamTabContent />
@@ -418,18 +423,18 @@ function ConversationView({
 function SessionInfoView({
   session,
   project,
+  containers,
   onDelete,
 }: {
   session: Session;
   project: Project;
+  containers: SessionContainer[];
   onDelete: () => void;
 }) {
-  const { useChannel } = useMultiplayer();
-  const sessionContainers = useChannel("sessionContainers", { uuid: session.id });
-  const links = sessionContainers.flatMap((container) => container.urls.map(({ url }) => url));
+  const links = containers.flatMap((container) => container.urls.map(({ url }) => url));
 
   const projectContainers = project.containers ?? [];
-  const hasSessionContainers = sessionContainers.length > 0;
+  const hasSessionContainers = containers.length > 0;
 
   return (
     <SessionInfoPane.Root>
@@ -446,7 +451,7 @@ function SessionInfoView({
       <SessionInfoPane.Section>
         <SessionInfoPane.SectionHeader>Containers</SessionInfoPane.SectionHeader>
         {hasSessionContainers ? (
-          sessionContainers.map((container) => (
+          containers.map((container) => (
             <SessionInfoPane.ContainerItem
               key={container.id}
               name={container.name}
@@ -559,6 +564,8 @@ function AppViewContent({ selected }: { selected: string | null }) {
   const { select } = useSplitPane();
   const { data: sessionData } = useSessionData(selected);
   const deleteSession = useDeleteSession();
+  const { useChannel } = useMultiplayer();
+  const containers = useChannel("sessionContainers", { uuid: selected ?? "" });
 
   const handleDelete = () => {
     if (!sessionData) return;
@@ -573,7 +580,7 @@ function AppViewContent({ selected }: { selected: string | null }) {
     return (
       <div className="flex h-full">
         <div className="flex-1 min-w-0 border-r border-border">
-          <ConversationView sessionId={selected} sessionData={null} />
+          <ConversationView sessionId={selected} sessionData={null} containers={[]} />
         </div>
       </div>
     );
@@ -583,12 +590,17 @@ function AppViewContent({ selected }: { selected: string | null }) {
     <BrowserStreamProvider sessionId={sessionData.session.id}>
       <div className="flex h-full">
         <div className="flex-1 min-w-0 border-r border-border">
-          <ConversationView sessionId={selected} sessionData={sessionData} />
+          <ConversationView
+            sessionId={selected}
+            sessionData={sessionData}
+            containers={containers}
+          />
         </div>
         <div className="min-w-64 shrink-0">
           <SessionInfoView
             session={sessionData.session}
             project={sessionData.project}
+            containers={containers}
             onDelete={handleDelete}
           />
         </div>
