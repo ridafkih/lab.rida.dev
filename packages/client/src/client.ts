@@ -68,12 +68,13 @@ export function createClient(config: ClientConfig) {
 
       get: (sessionId: string) => request<Session>(`/sessions/${sessionId}`),
 
-      create: (projectId: string) =>
+      create: (projectId: string, data?: { title?: string }) =>
         request<Session>(`/projects/${projectId}/sessions`, {
           method: "POST",
+          body: JSON.stringify(data ?? {}),
         }),
 
-      update: (sessionId: string, data: { opencodeSessionId?: string }) =>
+      update: (sessionId: string, data: { opencodeSessionId?: string; title?: string }) =>
         request<Session>(`/sessions/${sessionId}`, {
           method: "PATCH",
           body: JSON.stringify(data),

@@ -1,4 +1,3 @@
-import { formatSessionTitle } from "../../../types/session";
 import {
   findContainersByProjectId,
   createSessionContainer,
@@ -15,8 +14,10 @@ const GET: RouteHandler = async (_request, params) => {
   return Response.json(sessions);
 };
 
-const POST: RouteHandler = async (_request, params, context) => {
+const POST: RouteHandler = async (request, params, context) => {
   const { projectId } = params;
+  const body = await request.json().catch(() => ({}));
+  const title = typeof body.title === "string" ? body.title : undefined;
 
   const containerDefinitions = await findContainersByProjectId(projectId);
 
@@ -24,7 +25,7 @@ const POST: RouteHandler = async (_request, params, context) => {
     return Response.json({ error: "Project has no container definitions" }, { status: 400 });
   }
 
-  const session = await createSession(projectId);
+  const session = await createSession(projectId, title);
 
   const containerRows = [];
   for (const containerDefinition of containerDefinitions) {
@@ -53,7 +54,7 @@ const POST: RouteHandler = async (_request, params, context) => {
     session: {
       id: session.id,
       projectId: session.projectId,
-      title: formatSessionTitle(session.id),
+      title: session.title,
     },
   });
 
@@ -65,8 +66,7 @@ const POST: RouteHandler = async (_request, params, context) => {
 
   return Response.json(
     {
-      id: session.id,
-      projectId: session.projectId,
+      ...session,
       containers: containerRows,
     },
     { status: 201 },

@@ -11,8 +11,8 @@ export async function findSessionsByProjectId(projectId: string): Promise<Sessio
   return db.select().from(sessions).where(eq(sessions.projectId, projectId));
 }
 
-export async function createSession(projectId: string): Promise<Session> {
-  const [session] = await db.insert(sessions).values({ projectId }).returning();
+export async function createSession(projectId: string, title?: string): Promise<Session> {
+  const [session] = await db.insert(sessions).values({ projectId, title }).returning();
   return session;
 }
 
@@ -24,6 +24,15 @@ export async function updateSessionOpencodeId(
     .update(sessions)
     .set({ opencodeSessionId: opencodeSessionId, updatedAt: new Date() })
     .where(eq(sessions.id, sessionId));
+
+  return findSessionById(sessionId);
+}
+
+export async function updateSessionTitle(
+  sessionId: string,
+  title: string,
+): Promise<Session | null> {
+  await db.update(sessions).set({ title, updatedAt: new Date() }).where(eq(sessions.id, sessionId));
 
   return findSessionById(sessionId);
 }

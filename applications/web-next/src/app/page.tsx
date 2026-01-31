@@ -43,9 +43,19 @@ import { Trash2 } from "lucide-react";
 
 function SessionItem({ session }: { session: Session }) {
   const { selected, select } = useSplitPane();
+  const isTemp = session.id.startsWith("temp-");
+  const hasStartingContainer = session.containers?.some(
+    (container) => container.status === "starting",
+  );
 
-  if (session.status === "creating") {
-    return <ProjectNavigator.ItemSkeleton />;
+  if (session.status === "creating" || hasStartingContainer) {
+    return (
+      <ProjectNavigator.ItemSkeleton>
+        {isTemp ? <ProjectNavigator.ItemSkeletonBlock /> : <Hash>{session.id.slice(0, 6)}</Hash>}
+        <ProjectNavigator.ItemSkeletonBlock />
+        <ProjectNavigator.ItemSkeletonBlock />
+      </ProjectNavigator.ItemSkeleton>
+    );
   }
 
   return (
@@ -53,7 +63,6 @@ function SessionItem({ session }: { session: Session }) {
       <StatusIcon status={session.status as "running" | "idle" | "complete"} />
       <Hash>{session.id.slice(0, 6)}</Hash>
       <ProjectNavigator.ItemTitle>Session</ProjectNavigator.ItemTitle>
-      <ProjectNavigator.ItemDescription>{session.status}</ProjectNavigator.ItemDescription>
       <Avatar />
     </ProjectNavigator.Item>
   );
@@ -65,7 +74,7 @@ function ProjectSessionsList({ project }: { project: Project }) {
   const createSession = useCreateSession();
 
   const handleAddSession = () => {
-    createSession(project.id, select);
+    createSession(project.id, { onCreated: select });
   };
 
   return (
@@ -236,8 +245,8 @@ function ReviewTabContent({ sessionId }: { sessionId: string }) {
             </Review.DiffList>
             <ReviewFeedbackForm />
           </Review.DiffView>
+          <Review.PreviewHeader />
           <Review.PreviewView>
-            <Review.PreviewHeader />
             <Review.PreviewContent />
             <ReviewFeedbackForm />
           </Review.PreviewView>

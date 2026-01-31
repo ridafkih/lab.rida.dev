@@ -3,6 +3,7 @@ import { notFoundResponse, noContentResponse } from "../../shared/http";
 import {
   findSessionById,
   updateSessionOpencodeId,
+  updateSessionTitle,
 } from "../../utils/repositories/session.repository";
 import { findSessionContainersBySessionId } from "../../utils/repositories/container.repository";
 import { cleanupSession } from "../../utils/session/session-cleanup";
@@ -26,14 +27,17 @@ const GET: RouteHandler = async (_request, params) => {
 };
 
 const PATCH: RouteHandler = async (request, params) => {
-  const session = await findSessionById(params.sessionId);
+  let session = await findSessionById(params.sessionId);
   if (!session) return notFoundResponse();
 
   const body = await request.json();
 
   if (typeof body.opcodeSessionId === "string") {
-    const updated = await updateSessionOpencodeId(params.sessionId, body.opcodeSessionId);
-    return Response.json(updated);
+    session = await updateSessionOpencodeId(params.sessionId, body.opcodeSessionId);
+  }
+
+  if (typeof body.title === "string") {
+    session = await updateSessionTitle(params.sessionId, body.title);
   }
 
   return Response.json(session);

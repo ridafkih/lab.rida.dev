@@ -36,6 +36,7 @@ export interface SessionContainer {
 export interface Session {
   id: string;
   projectId: string;
+  title: string;
   opencodeSessionId: string | null;
   status: string;
   containers?: SessionContainer[];

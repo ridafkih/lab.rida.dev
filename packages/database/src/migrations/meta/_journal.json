@@ -57,6 +57,13 @@
       "when": 1769746241963,
       "tag": "0007_naive_the_hood",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1769852733718,
+      "tag": "0008_wandering_red_skull",
+      "breakpoints": true
     }
   ]
 }

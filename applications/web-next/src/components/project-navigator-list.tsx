@@ -109,7 +109,7 @@ function ProjectNavigatorItem({ children, selected, onClick }: ItemProps) {
   );
 }
 
-function ProjectNavigatorItemSkeleton() {
+function ProjectNavigatorItemSkeleton({ children }: { children?: ReactNode }) {
   const { expanded } = useProjectNavigator();
 
   if (!expanded) return null;
@@ -117,12 +117,13 @@ function ProjectNavigatorItemSkeleton() {
   return (
     <div className={listItem({ selected: false })}>
       <Loader2 size={14} className="shrink-0 animate-spin text-text-muted" />
-      <div className="h-3 w-10 rounded bg-bg-hover animate-pulse" />
-      <div className="h-3 w-12 rounded bg-bg-hover animate-pulse" />
-      <div className="h-3 w-16 rounded bg-bg-hover animate-pulse ml-auto" />
-      <div className="size-5 rounded-full bg-bg-hover animate-pulse" />
+      {children}
     </div>
   );
+}
+
+function ProjectNavigatorItemSkeletonBlock() {
+  return <div className="h-3 w-12 rounded bg-bg-hover animate-pulse" />;
 }
 
 function ProjectNavigatorItemTitle({ children }: { children: ReactNode }) {
@@ -142,6 +143,7 @@ const ProjectNavigator = {
   ItemTitle: ProjectNavigatorItemTitle,
   ItemDescription: ProjectNavigatorItemDescription,
   ItemSkeleton: ProjectNavigatorItemSkeleton,
+  ItemSkeletonBlock: ProjectNavigatorItemSkeletonBlock,
 };
 
 export { ProjectNavigator, useProjectNavigator };

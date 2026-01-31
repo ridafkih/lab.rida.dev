@@ -219,7 +219,6 @@ function ReviewEmpty() {
   if (state.files.length === 0) {
     return (
       <div className={emptyState()}>
-        <Check className="size-8 text-green-500" />
         <span className="text-sm text-text-muted">No files to review</span>
       </div>
     );

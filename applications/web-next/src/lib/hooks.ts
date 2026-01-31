@@ -28,14 +28,21 @@ export function useSession(sessionId: string | null) {
   });
 }
 
+interface CreateSessionOptions {
+  title?: string;
+  onCreated: (sessionId: string) => void;
+}
+
 export function useCreateSession() {
   const { mutate } = useSWRConfig();
 
-  return async (projectId: string, onCreated: (sessionId: string) => void) => {
+  return async (projectId: string, options: CreateSessionOptions) => {
+    const { title, onCreated } = options;
     const tempId = `temp-${Date.now()}`;
     const tempSession: Session = {
       id: tempId,
       projectId,
+      title: title ?? "New Session",
       opencodeSessionId: null,
       status: "creating",
       createdAt: new Date().toISOString(),
@@ -48,7 +55,7 @@ export function useCreateSession() {
     onCreated(tempId);
 
     try {
-      const realSession = await api.sessions.create(projectId);
+      const realSession = await api.sessions.create(projectId, { title });
 
       mutate(
         cacheKey,
