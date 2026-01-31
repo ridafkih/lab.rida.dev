@@ -15,12 +15,7 @@ import {
   useSplitPane,
 } from "@/components/split-pane";
 import { navItems, mockProjects } from "@/placeholder/data";
-
-const modelOptions = [
-  { label: "Claude Sonnet 4", value: "claude-sonnet-4" },
-  { label: "Claude Opus 4", value: "claude-opus-4" },
-  { label: "Claude Haiku 3.5", value: "claude-haiku-3.5" },
-];
+import { modelGroups, defaultModel } from "@/placeholder/models";
 
 function ProjectNavigator() {
   const { selected, select } = useSplitPane();
@@ -78,7 +73,7 @@ function ConversationPreview({ sessionId }: { sessionId: string | null }) {
 
 export default function Page() {
   const [prompt, setPrompt] = useState("");
-  const [model, setModel] = useState("claude-sonnet-4");
+  const [model, setModel] = useState(defaultModel);
 
   return (
     <div className="flex flex-col h-screen">
@@ -102,7 +97,7 @@ export default function Page() {
                 <TextAreaGroup.Toolbar>
                   <TextAreaGroup.ModelSelector
                     value={model}
-                    options={modelOptions}
+                    groups={modelGroups}
                     onChange={setModel}
                   />
                   <TextAreaGroup.Submit />

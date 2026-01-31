@@ -93,15 +93,18 @@ function TextAreaGroupToolbar({ children }: ToolbarProps) {
   return <div className="flex items-center gap-2 px-3 py-2 border-t border-border">{children}</div>;
 }
 
+type ModelGroup = {
+  provider: string;
+  models: { label: string; value: string }[];
+};
+
 type ModelSelectorProps = {
   value: string;
-  options: { label: string; value: string }[];
+  groups: ModelGroup[];
   onChange: (value: string) => void;
 };
 
-function TextAreaGroupModelSelector({ value, options, onChange }: ModelSelectorProps) {
-  const selectedOption = options.find((option) => option.value === value);
-
+function TextAreaGroupModelSelector({ value, groups, onChange }: ModelSelectorProps) {
   return (
     <div className="relative">
       <select
@@ -109,10 +112,14 @@ function TextAreaGroupModelSelector({ value, options, onChange }: ModelSelectorP
         onChange={(event) => onChange(event.target.value)}
         className="appearance-none bg-transparent text-xs text-text-secondary pr-5 cursor-pointer focus:outline-none"
       >
-        {options.map((option) => (
-          <option key={option.value} value={option.value}>
-            {option.label}
-          </option>
+        {groups.map((group) => (
+          <optgroup key={group.provider} label={group.provider} className="bg-bg text-text">
+            {group.models.map((model) => (
+              <option key={model.value} value={model.value} className="bg-bg text-text">
+                {model.label}
+              </option>
+            ))}
+          </optgroup>
         ))}
       </select>
       <ChevronDown
