@@ -2,7 +2,7 @@ import { tv } from "tailwind-variants";
 
 const nav = tv({
   slots: {
-    root: "flex gap-4 px-3 py-2 whitespace-nowrap font-medium",
+    root: "flex gap-4 px-3 py-2 whitespace-nowrap font-medium border-b border-neutral-200",
     link: "text-text-secondary hover:text-text",
   },
   variants: {

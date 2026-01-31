@@ -26,7 +26,7 @@ function SplitPane({ children }: SplitPaneProps) {
 
   return (
     <SplitPaneContext value={{ selected, select: setSelected }}>
-      <div className="flex h-screen">{children}</div>
+      <div className="flex flex-1 min-h-0">{children}</div>
     </SplitPaneContext>
   );
 }
@@ -37,7 +37,7 @@ type SplitPanePrimaryProps = {
 
 function SplitPanePrimary({ children }: SplitPanePrimaryProps) {
   return (
-    <aside className="flex flex-col h-full w-1/2 max-w-lg border-r border-border bg-bg">
+    <aside className="relative flex flex-col h-full w-1/2 max-w-lg border-r border-border bg-bg">
       {children}
     </aside>
   );

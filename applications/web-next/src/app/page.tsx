@@ -7,7 +7,7 @@ import {
   ProjectNavigatorListHeader,
   ProjectNavigatorListItem,
 } from "@/components/project-navigator-list";
-import { PromptInput } from "@/components/prompt-input";
+import { TextAreaGroup } from "@/components/textarea-group";
 import {
   SplitPane,
   SplitPanePrimary,
@@ -16,12 +16,18 @@ import {
 } from "@/components/split-pane";
 import { navItems, mockProjects } from "@/placeholder/data";
 
+const modelOptions = [
+  { label: "Claude Sonnet 4", value: "claude-sonnet-4" },
+  { label: "Claude Opus 4", value: "claude-opus-4" },
+  { label: "Claude Haiku 3.5", value: "claude-haiku-3.5" },
+];
+
 function ProjectNavigator() {
   const { selected, select } = useSplitPane();
 
   return (
     <div className="flex-1 overflow-y-auto">
-      <div className="flex flex-col gap-px bg-border py-px">
+      <div className="flex flex-col gap-px bg-border py-pb">
         {mockProjects.map((project) => (
           <ProjectNavigatorList key={project.id}>
             <ProjectNavigatorListHeader
@@ -72,24 +78,43 @@ function ConversationPreview({ sessionId }: { sessionId: string | null }) {
 
 export default function Page() {
   const [prompt, setPrompt] = useState("");
+  const [model, setModel] = useState("claude-sonnet-4");
 
   return (
-    <SplitPane>
-      <SplitPanePrimary>
-        <Nav items={navItems} activeHref="/projects" />
-        <ProjectNavigator />
-        <PromptInput
-          value={prompt}
-          onChange={setPrompt}
-          onSubmit={() => {
-            console.log("Submit:", prompt);
-            setPrompt("");
-          }}
-        />
-      </SplitPanePrimary>
-      <SplitPaneSecondary>
-        {(selected) => <ConversationPreview sessionId={selected} />}
-      </SplitPaneSecondary>
-    </SplitPane>
+    <div className="flex flex-col h-screen">
+      <Nav items={navItems} activeHref="/projects" />
+      <SplitPane>
+        <SplitPanePrimary>
+          <ProjectNavigator />
+          <div className="absolute bottom-0 left-0 right-0 px-4 pb-4 pt-12 bg-gradient-to-t from-bg to-transparent pointer-events-none">
+            <TextAreaGroup.Provider
+              state={{ value: prompt }}
+              actions={{
+                onChange: setPrompt,
+                onSubmit: () => {
+                  console.log("Submit:", prompt, "with model:", model);
+                  setPrompt("");
+                },
+              }}
+            >
+              <TextAreaGroup.Frame>
+                <TextAreaGroup.Input />
+                <TextAreaGroup.Toolbar>
+                  <TextAreaGroup.ModelSelector
+                    value={model}
+                    options={modelOptions}
+                    onChange={setModel}
+                  />
+                  <TextAreaGroup.Submit />
+                </TextAreaGroup.Toolbar>
+              </TextAreaGroup.Frame>
+            </TextAreaGroup.Provider>
+          </div>
+        </SplitPanePrimary>
+        <SplitPaneSecondary>
+          {(selected) => <ConversationPreview sessionId={selected} />}
+        </SplitPaneSecondary>
+      </SplitPane>
+    </div>
   );
 }
