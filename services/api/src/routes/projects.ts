@@ -1,9 +1,12 @@
-import { findAllProjects, createProject } from "../utils/repositories/project.repository";
+import {
+  findAllProjectsWithContainers,
+  createProject,
+} from "../utils/repositories/project.repository";
 import { publisher } from "../clients/publisher";
 import type { RouteHandler } from "../utils/handlers/route-handler";
 
 const GET: RouteHandler = async () => {
-  const projects = await findAllProjects();
+  const projects = await findAllProjectsWithContainers();
   return Response.json(projects);
 };
 

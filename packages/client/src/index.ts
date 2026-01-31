@@ -1,6 +1,7 @@
 export { createClient, type Client, type ClientConfig } from "./client";
 export type {
   Project,
+  ProjectContainer,
   CreateProjectInput,
   Container,
   CreateContainerInput,

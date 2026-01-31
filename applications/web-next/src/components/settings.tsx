@@ -9,8 +9,8 @@ import { FormInput, InputGroup } from "./form-input";
 import { useAppView } from "./app-view";
 import { IconButton } from "./icon-button";
 import { Tabs } from "./tabs";
-import type { Container } from "@lab/client";
-import { useProjects, useContainers } from "@/lib/hooks";
+import type { ProjectContainer } from "@lab/client";
+import { useProjects } from "@/lib/hooks";
 import { api } from "@/lib/api";
 
 type SettingsTab = "github" | "providers" | "projects";
@@ -223,10 +223,9 @@ function ProjectsList({
   );
 }
 
-function ContainerDisplay({ container }: { container: Container & { ports?: number[] } }) {
+function ContainerDisplay({ container }: { container: ProjectContainer }) {
   const styles = containerDisplay();
-  const ports = container.ports ?? [];
-  const portsList = ports.length > 0 ? ports.join(", ") : "none";
+  const portsList = container.ports.length > 0 ? container.ports.join(", ") : "none";
 
   return (
     <div className={styles.root()}>
@@ -240,7 +239,6 @@ function ContainerDisplay({ container }: { container: Container & { ports?: numb
 function ProjectDetail({ projectId, onBack }: { projectId: string; onBack: () => void }) {
   const { mutate } = useSWRConfig();
   const { data: projects } = useProjects();
-  const { data: containers, isLoading: containersLoading } = useContainers(projectId);
   const [isArchiving, setIsArchiving] = useState(false);
 
   const project = projects?.find((proj) => proj.id === projectId);
@@ -252,6 +250,8 @@ function ProjectDetail({ projectId, onBack }: { projectId: string; onBack: () =>
       </SettingsPanel>
     );
   }
+
+  const containers = project.containers ?? [];
 
   const handleArchive = async () => {
     setIsArchiving(true);
@@ -285,11 +285,10 @@ function ProjectDetail({ projectId, onBack }: { projectId: string; onBack: () =>
 
       <div className={containersSection()}>
         <span className="text-xs text-text-secondary">Containers</span>
-        {containersLoading && <span className="text-xs text-text-muted">Loading...</span>}
-        {containers && containers.length === 0 && (
+        {containers.length === 0 && (
           <span className={listSectionEmpty()}>No containers configured</span>
         )}
-        {containers && containers.length > 0 && (
+        {containers.length > 0 && (
           <div className="flex flex-col gap-2">
             {containers.map((container) => (
               <ContainerDisplay key={container.id} container={container} />

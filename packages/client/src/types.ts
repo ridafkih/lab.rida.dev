@@ -1,7 +1,15 @@
+export interface ProjectContainer {
+  id: string;
+  image: string;
+  hostname: string | null;
+  ports: number[];
+}
+
 export interface Project {
   id: string;
   name: string;
   systemPrompt: string | null;
+  containers: ProjectContainer[];
   createdAt: string;
   updatedAt: string;
 }
