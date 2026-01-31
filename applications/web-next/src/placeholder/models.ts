@@ -25,4 +25,4 @@ export const modelGroups = [
   },
 ];
 
-export const defaultModel = "claude-sonnet-4";
+export const defaultModel = "anthropic/claude-sonnet-4";

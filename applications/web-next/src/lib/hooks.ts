@@ -6,6 +6,34 @@ export function useProjects() {
   return useSWR("projects", () => api.projects.list());
 }
 
+interface ModelGroup {
+  provider: string;
+  models: { label: string; value: string }[];
+}
+
+export function useModels() {
+  return useSWR("models", async () => {
+    const response = await api.models.list();
+
+    const groupMap = new Map<string, ModelGroup>();
+    for (const model of response.models) {
+      const existing = groupMap.get(model.providerId);
+      const entry = { label: model.name, value: `${model.providerId}/${model.modelId}` };
+
+      if (existing) {
+        existing.models.push(entry);
+      } else {
+        groupMap.set(model.providerId, {
+          provider: model.providerName,
+          models: [entry],
+        });
+      }
+    }
+
+    return Array.from(groupMap.values());
+  });
+}
+
 export function useContainers(projectId: string | null) {
   return useSWR(projectId ? `containers-${projectId}` : null, () => {
     if (!projectId) return [];

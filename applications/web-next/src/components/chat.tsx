@@ -7,12 +7,19 @@ import { Tabs, useTabs } from "./tabs";
 
 type ChatRole = "user" | "assistant";
 
+type SubmitOptions = {
+  content: string;
+  modelId?: string;
+};
+
 type ChatState = {
   input: string;
+  modelId: string | null;
 };
 
 type ChatActions = {
   setInput: (value: string) => void;
+  setModelId: (value: string) => void;
   onSubmit: () => void;
 };
 
@@ -33,21 +40,29 @@ function useChat() {
 
 function ChatProvider({
   children,
+  defaultModelId,
   onSubmit,
 }: {
   children: ReactNode;
-  onSubmit?: (input: string) => void;
+  defaultModelId?: string;
+  onSubmit?: (options: SubmitOptions) => void;
 }) {
   const [input, setInput] = useState("");
+  const [modelId, setModelId] = useState(defaultModelId ?? null);
 
   const handleSubmit = () => {
     if (!input.trim()) return;
-    onSubmit?.(input);
+    onSubmit?.({ content: input, modelId: modelId ?? undefined });
     setInput("");
   };
 
   return (
-    <ChatContext value={{ state: { input }, actions: { setInput, onSubmit: handleSubmit } }}>
+    <ChatContext
+      value={{
+        state: { input, modelId },
+        actions: { setInput, setModelId, onSubmit: handleSubmit },
+      }}
+    >
       {children}
     </ChatContext>
   );

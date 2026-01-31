@@ -15,11 +15,16 @@ export interface MessageState {
   parts: Part[];
 }
 
+interface SendMessageOptions {
+  content: string;
+  modelId?: string;
+}
+
 interface UseAgentResult {
   isLoading: boolean;
   messages: MessageState[];
   error: Error | null;
-  sendMessage: (content: string) => Promise<void>;
+  sendMessage: (options: SendMessageOptions) => Promise<void>;
   isSending: boolean;
 }
 
@@ -159,7 +164,7 @@ export function useAgent(labSessionId: string): UseAgentResult {
   }, [opencodeSessionId, opencodeClient]);
 
   const sendMessage = useCallback(
-    async (content: string) => {
+    async ({ content, modelId }: SendMessageOptions) => {
       if (!opencodeSessionId || !opencodeClient) {
         throw new Error("Session not initialized");
       }
@@ -168,10 +173,12 @@ export function useAgent(labSessionId: string): UseAgentResult {
       setIsSending(true);
 
       try {
+        const [providerID, modelID] = modelId?.split("/") ?? [];
         const response = await opencodeClient.session.promptAsync({
           path: { id: opencodeSessionId },
           body: {
             parts: [{ type: "text", text: content }],
+            model: providerID && modelID ? { providerID, modelID } : undefined,
           },
         });
 

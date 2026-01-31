@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { useSWRConfig } from "swr";
 import { AppView, useAppView } from "@/components/app-view";
 import { Nav } from "@/components/nav";
-import { Chat } from "@/components/chat";
+import { Chat, useChat } from "@/components/chat";
 import { Settings } from "@/components/settings";
 import { MessagePart } from "@/components/message-part";
 import { Orchestration, useOrchestration } from "@/components/orchestration";
@@ -30,6 +30,7 @@ import {
   useSession,
   useCreateSession,
   useDeleteSession,
+  useModels,
 } from "@/lib/hooks";
 import type { Project, Session } from "@lab/client";
 import {
@@ -39,7 +40,7 @@ import {
   type BrowserActions,
   type FileNode,
 } from "@/components/review";
-import { modelGroups, defaultModel } from "@/placeholder/models";
+import { defaultModel } from "@/placeholder/models";
 import { Trash2 } from "lucide-react";
 import { useMultiplayer } from "@/lib/multiplayer";
 import { useAgent, type MessageState } from "@/lib/use-agent";
@@ -271,7 +272,8 @@ function ReviewTabContent({ sessionId }: { sessionId: string }) {
 }
 
 function ChatTabContent({ messages }: { messages: MessageState[] }) {
-  const [model, setModel] = useState(defaultModel);
+  const { data: modelGroups } = useModels();
+  const { state, actions } = useChat();
 
   return (
     <Chat.MessageList>
@@ -290,7 +292,13 @@ function ChatTabContent({ messages }: { messages: MessageState[] }) {
         )}
       </Chat.Messages>
       <Chat.Input>
-        <TextAreaGroup.ModelSelector value={model} groups={modelGroups} onChange={setModel} />
+        {modelGroups && state.modelId && (
+          <TextAreaGroup.ModelSelector
+            value={state.modelId}
+            groups={modelGroups}
+            onChange={actions.setModelId}
+          />
+        )}
       </Chat.Input>
     </Chat.MessageList>
   );
@@ -368,10 +376,10 @@ function ConversationView({
   const session = sessionData?.session;
 
   return (
-    <Chat.Provider key={sessionId} onSubmit={sendMessage}>
+    <Chat.Provider key={sessionId} defaultModelId={defaultModel} onSubmit={sendMessage}>
       <Chat.Frame>
         <Chat.Header>
-          <StatusIcon status={(session?.status as "running" | "idle" | "complete") ?? "idle"} />
+          <StatusIcon status={session?.status ?? "idle"} />
           <Chat.HeaderBreadcrumb>
             <Chat.HeaderProject>{project?.name}</Chat.HeaderProject>
             <Chat.HeaderDivider />
@@ -494,6 +502,7 @@ function SessionInfoView({
 function PromptArea() {
   const [prompt, setPrompt] = useState("");
   const [model, setModel] = useState(defaultModel);
+  const { data: modelGroups } = useModels();
   const orchestration = useOrchestration();
 
   const handleSubmit = async () => {
@@ -502,7 +511,6 @@ function PromptArea() {
     const id = orchestration.add({ status: "thinking" });
     setPrompt("");
 
-    // Simulate orchestration flow
     await new Promise((resolve) => setTimeout(resolve, 1500));
     orchestration.update(id, { status: "delegating" });
 
@@ -526,7 +534,9 @@ function PromptArea() {
         <TextAreaGroup.Frame>
           <TextAreaGroup.Input />
           <TextAreaGroup.Toolbar>
-            <TextAreaGroup.ModelSelector value={model} groups={modelGroups} onChange={setModel} />
+            {modelGroups && (
+              <TextAreaGroup.ModelSelector value={model} groups={modelGroups} onChange={setModel} />
+            )}
             <TextAreaGroup.Submit />
           </TextAreaGroup.Toolbar>
         </TextAreaGroup.Frame>
