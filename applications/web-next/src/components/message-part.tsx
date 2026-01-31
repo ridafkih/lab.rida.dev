@@ -1,6 +1,6 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { createContext, use, useState, type ReactNode } from "react";
 import type {
   Part,
   TextPart,
@@ -47,10 +47,68 @@ function MessagePartText({ part, isStreaming }: { part: TextPart; isStreaming?: 
   );
 }
 
-function MessagePartReasoning({ part }: { part: ReasoningPart }) {
+type ReasoningContextValue = {
+  state: { expanded: boolean };
+  actions: { toggle: () => void };
+  meta: { part: ReasoningPart };
+};
+
+const ReasoningContext = createContext<ReasoningContextValue | null>(null);
+
+function useReasoning() {
+  const context = use(ReasoningContext);
+  if (!context) {
+    throw new Error("Reasoning components must be used within MessagePart.Reasoning");
+  }
+  return context;
+}
+
+function MessagePartReasoning({ part, children }: { part: ReasoningPart; children: ReactNode }) {
+  const [expanded, setExpanded] = useState(false);
+
   return (
-    <div className={cn(contentBlock(), "text-text-muted italic")}>
-      <Markdown>{part.text}</Markdown>
+    <ReasoningContext
+      value={{
+        state: { expanded },
+        actions: { toggle: () => setExpanded(!expanded) },
+        meta: { part },
+      }}
+    >
+      <div>{children}</div>
+    </ReasoningContext>
+  );
+}
+
+function MessagePartReasoningHeader({ children }: { children: ReactNode }) {
+  const { actions } = useReasoning();
+
+  return (
+    <button
+      type="button"
+      onClick={actions.toggle}
+      className="flex items-center gap-1.5 w-full px-4 py-1 text-xs cursor-pointer hover:bg-bg-hover"
+    >
+      {children}
+    </button>
+  );
+}
+
+function MessagePartReasoningChevron() {
+  const { state } = useReasoning();
+  return (
+    <ChevronRight
+      size={12}
+      className={cn("text-text-muted transition-transform", state.expanded && "rotate-90")}
+    />
+  );
+}
+
+function MessagePartReasoningContent() {
+  const { state, meta } = useReasoning();
+  if (!state.expanded) return null;
+  return (
+    <div className={cn(contentBlock(), "text-text-muted")}>
+      <Markdown>{meta.part.text}</Markdown>
     </div>
   );
 }
@@ -58,6 +116,16 @@ function MessagePartReasoning({ part }: { part: ReasoningPart }) {
 const actionRow = tv({
   base: "flex items-center gap-2 px-4 py-2 text-sm",
 });
+
+const stripedBackground = {
+  background: `repeating-linear-gradient(
+    -45deg,
+    transparent,
+    transparent 4px,
+    var(--color-border) 4px,
+    var(--color-border) 5px
+  )`,
+};
 
 const toolStatus = tv({
   base: "",
@@ -71,29 +139,103 @@ const toolStatus = tv({
   },
 });
 
-function MessagePartTool({ part, children }: { part: ToolPart; children?: ReactNode }) {
-  const status = part.state.status;
-  const title = "title" in part.state ? part.state.title : part.tool;
-  const duration =
-    status === "completed" || status === "error"
-      ? part.state.time.end - part.state.time.start
-      : null;
+type ToolContextValue = {
+  state: { expanded: boolean };
+  actions: { toggle: () => void };
+  meta: { part: ToolPart };
+};
+
+const ToolContext = createContext<ToolContextValue | null>(null);
+
+function useTool() {
+  const context = use(ToolContext);
+  if (!context) {
+    throw new Error("Tool components must be used within MessagePart.Tool");
+  }
+  return context;
+}
+
+function MessagePartTool({ part, children }: { part: ToolPart; children: ReactNode }) {
+  const [expanded, setExpanded] = useState(false);
 
   return (
-    <div>
-      <div className={cn(actionRow(), "cursor-pointer hover:bg-bg-hover")}>
-        {(status === "running" || status === "pending") && (
-          <Loader2 size={14} className={toolStatus({ status: "running" })} />
-        )}
-        {status === "completed" && <Check size={14} className={toolStatus({ status })} />}
-        {status === "error" && <span className={toolStatus({ status })}>✕</span>}
-        <span className="flex-1">{title}</span>
-        {duration !== null && <span className="text-xs text-text-muted">{duration}ms</span>}
-        <ChevronRight size={14} className="text-text-muted" />
-      </div>
-      {children}
-    </div>
+    <ToolContext
+      value={{
+        state: { expanded },
+        actions: { toggle: () => setExpanded(!expanded) },
+        meta: { part },
+      }}
+    >
+      <div>{children}</div>
+    </ToolContext>
   );
+}
+
+function MessagePartToolStatus() {
+  const { meta } = useTool();
+  const status = meta.part.state.status;
+
+  if (status === "running" || status === "pending") {
+    return <Loader2 size={12} className={toolStatus({ status: "running" })} />;
+  }
+  if (status === "completed") {
+    return <Check size={12} className={toolStatus({ status })} />;
+  }
+  if (status === "error") {
+    return <span className={toolStatus({ status })}>✕</span>;
+  }
+  return null;
+}
+
+function MessagePartToolName() {
+  const { meta } = useTool();
+  return <span className="text-text-secondary">{meta.part.tool}</span>;
+}
+
+function MessagePartToolPath() {
+  const { meta } = useTool();
+  const input = meta.part.state.input as Record<string, unknown>;
+  const path = (input?.file_path as string) ?? (input?.path as string) ?? null;
+  if (!path) return <span className="flex-1" />;
+  return <span className="flex-1 text-left">{path}</span>;
+}
+
+function MessagePartToolDuration() {
+  const { meta } = useTool();
+  const status = meta.part.state.status;
+  if (status !== "completed" && status !== "error") return null;
+  const duration = meta.part.state.time.end - meta.part.state.time.start;
+  return <span className="text-text-muted">{duration}ms</span>;
+}
+
+function MessagePartToolChevron() {
+  const { state } = useTool();
+  return (
+    <ChevronRight
+      size={12}
+      className={cn("text-text-muted transition-transform", state.expanded && "rotate-90")}
+    />
+  );
+}
+
+function MessagePartToolHeader({ children }: { children: ReactNode }) {
+  const { actions } = useTool();
+
+  return (
+    <button
+      type="button"
+      onClick={actions.toggle}
+      className="flex items-center gap-1.5 w-full px-4 py-1 text-xs cursor-pointer hover:bg-bg-hover"
+    >
+      {children}
+    </button>
+  );
+}
+
+function MessagePartToolDetails({ children }: { children: ReactNode }) {
+  const { state } = useTool();
+  if (!state.expanded) return null;
+  return <div className="flex flex-col">{children}</div>;
 }
 
 const detailBlock = tv({
@@ -128,26 +270,12 @@ const metaRow = tv({
   base: "flex items-center gap-3 px-4 py-1.5 text-xs text-text-muted",
 });
 
-function MessagePartStepStart({ part }: { part: StepStartPart }) {
-  return (
-    <div className={metaRow()}>
-      <span>Step started</span>
-      {part.snapshot && <span className="font-mono">{part.snapshot.slice(0, 8)}</span>}
-    </div>
-  );
+function MessagePartStepStart({}: { part: StepStartPart }) {
+  return <div className={metaRow()} style={stripedBackground}></div>;
 }
 
-function MessagePartStepFinish({ part }: { part: StepFinishPart }) {
-  return (
-    <div className={metaRow()}>
-      <span>{part.reason}</span>
-      <span>
-        {part.tokens.input.toLocaleString()}↓ {part.tokens.output.toLocaleString()}↑
-      </span>
-      {part.tokens.reasoning > 0 && <span>{part.tokens.reasoning.toLocaleString()} reasoning</span>}
-      {part.cost > 0 && <span>${part.cost.toFixed(4)}</span>}
-    </div>
-  );
+function MessagePartStepFinish({}: { part: StepFinishPart }) {
+  return <div className={metaRow()} style={stripedBackground} />;
 }
 
 function MessagePartSnapshot({ part }: { part: SnapshotPart }) {
@@ -222,11 +350,39 @@ function MessagePartRoot({
   }
 
   if (isReasoningPart(part)) {
-    return <MessagePartReasoning part={part} />;
+    return (
+      <MessagePartReasoning part={part}>
+        <MessagePartReasoningHeader>
+          <MessagePartReasoningChevron />
+          <span className="text-text-muted">Thinking</span>
+        </MessagePartReasoningHeader>
+        <MessagePartReasoningContent />
+      </MessagePartReasoning>
+    );
   }
 
   if (isToolPart(part)) {
-    return <MessagePartTool part={part} />;
+    const status = part.state.status;
+    const input = part.state.input;
+    const output = status === "completed" ? part.state.output : null;
+    const error = status === "error" ? part.state.error : null;
+
+    return (
+      <MessagePartTool part={part}>
+        <MessagePartToolHeader>
+          <MessagePartToolStatus />
+          <MessagePartToolName />
+          <MessagePartToolPath />
+          <MessagePartToolDuration />
+          <MessagePartToolChevron />
+        </MessagePartToolHeader>
+        <MessagePartToolDetails>
+          {input && <MessagePartToolInput input={input} />}
+          {output && <MessagePartToolOutput output={output} />}
+          {error && <MessagePartToolError error={error} />}
+        </MessagePartToolDetails>
+      </MessagePartTool>
+    );
   }
 
   if (isFilePart(part)) {
@@ -272,7 +428,17 @@ const MessagePart = {
   Root: MessagePartRoot,
   Text: MessagePartText,
   Reasoning: MessagePartReasoning,
+  ReasoningHeader: MessagePartReasoningHeader,
+  ReasoningChevron: MessagePartReasoningChevron,
+  ReasoningContent: MessagePartReasoningContent,
   Tool: MessagePartTool,
+  ToolHeader: MessagePartToolHeader,
+  ToolStatus: MessagePartToolStatus,
+  ToolName: MessagePartToolName,
+  ToolPath: MessagePartToolPath,
+  ToolDuration: MessagePartToolDuration,
+  ToolChevron: MessagePartToolChevron,
+  ToolDetails: MessagePartToolDetails,
   ToolInput: MessagePartToolInput,
   ToolOutput: MessagePartToolOutput,
   ToolError: MessagePartToolError,

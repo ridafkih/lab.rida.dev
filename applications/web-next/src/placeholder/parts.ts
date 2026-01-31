@@ -59,7 +59,7 @@ export const mockPartsMessages: Record<string, MockMessage[]> = {
           messageID: "msg-2",
           type: "tool",
           callID: "call-1",
-          tool: "Write",
+          tool: "write",
           state: {
             status: "completed",
             input: {
@@ -117,7 +117,7 @@ export const mockPartsMessages: Record<string, MockMessage[]> = {
           messageID: "msg-4",
           type: "tool",
           callID: "call-2",
-          tool: "Read",
+          tool: "read",
           state: {
             status: "completed",
             input: { file_path: "src/lib/auth.ts" },
@@ -133,7 +133,7 @@ export const mockPartsMessages: Record<string, MockMessage[]> = {
           messageID: "msg-4",
           type: "tool",
           callID: "call-3",
-          tool: "Edit",
+          tool: "edit",
           state: {
             status: "completed",
             input: {
@@ -153,7 +153,7 @@ export const mockPartsMessages: Record<string, MockMessage[]> = {
           messageID: "msg-4",
           type: "tool",
           callID: "call-4",
-          tool: "Write",
+          tool: "write",
           state: {
             status: "completed",
             input: {
@@ -219,7 +219,7 @@ export const mockPartsMessages: Record<string, MockMessage[]> = {
           messageID: "msg-6",
           type: "tool",
           callID: "call-5",
-          tool: "Write",
+          tool: "write",
           state: {
             status: "running",
             input: {

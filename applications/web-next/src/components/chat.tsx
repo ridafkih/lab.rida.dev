@@ -83,7 +83,7 @@ function ChatMessageList({ children }: { children: ReactNode }) {
 }
 
 function ChatMessages({ children }: { children: ReactNode }) {
-  return <div className="flex flex-col gap-px bg-border">{children}</div>;
+  return <div className="flex flex-col gap-px bg-border pb-px">{children}</div>;
 }
 
 const block = tv({
