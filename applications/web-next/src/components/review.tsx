@@ -240,6 +240,7 @@ function ReviewEmpty() {
 function ReviewDiffView({ children }: { children: ReactNode }) {
   const { state } = useReview();
   if (state.view !== "diff") return null;
+  if (state.pendingFiles.length === 0 && !state.selection) return null;
   return <div className="contents">{children}</div>;
 }
 
