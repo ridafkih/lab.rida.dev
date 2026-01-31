@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useEffect, useCallback, useMemo } from "react";
-import { createOpencodeClient, type Message, type Part } from "@opencode-ai/sdk/client";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import { createOpencodeClient, type Message, type Part, type Event } from "@opencode-ai/sdk/client";
 import { api } from "./api";
 
 interface LoadedMessage {
@@ -28,12 +28,50 @@ interface UseAgentResult {
   isSending: boolean;
 }
 
+function getSessionIdFromEvent(event: Event): string | undefined {
+  if (!("properties" in event)) {
+    return undefined;
+  }
+
+  const properties = event.properties;
+
+  if ("sessionID" in properties && typeof properties.sessionID === "string") {
+    return properties.sessionID;
+  }
+
+  if ("info" in properties && typeof properties.info === "object" && properties.info !== null) {
+    const info = properties.info;
+    if ("sessionID" in info && typeof info.sessionID === "string") {
+      return info.sessionID;
+    }
+  }
+
+  if ("part" in properties && typeof properties.part === "object" && properties.part !== null) {
+    const part = properties.part;
+    if ("sessionID" in part && typeof part.sessionID === "string") {
+      return part.sessionID;
+    }
+  }
+
+  return undefined;
+}
+
+function createGlobalEventClient() {
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL;
+  if (!apiUrl) throw new Error("NEXT_PUBLIC_API_URL must be set");
+
+  return createOpencodeClient({
+    baseUrl: `${apiUrl}/opencode`,
+  });
+}
+
 export function useAgent(labSessionId: string): UseAgentResult {
   const [opencodeSessionId, setOpencodeSessionId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [messages, setMessages] = useState<MessageState[]>([]);
   const [error, setError] = useState<Error | null>(null);
   const [isSending, setIsSending] = useState(false);
+  const currentOpencodeSessionRef = useRef<string | null>(null);
 
   const opencodeClient = useMemo(() => {
     if (!labSessionId) return null;
@@ -48,6 +86,10 @@ export function useAgent(labSessionId: string): UseAgentResult {
   }, [labSessionId]);
 
   useEffect(() => {
+    setMessages([]);
+    setOpencodeSessionId(null);
+    currentOpencodeSessionRef.current = null;
+
     if (!labSessionId || !opencodeClient) {
       setIsLoading(false);
       return;
@@ -74,6 +116,7 @@ export function useAgent(labSessionId: string): UseAgentResult {
 
         if (cancelled) return;
         setOpencodeSessionId(sessionId);
+        currentOpencodeSessionRef.current = sessionId;
 
         const messagesResponse = await opencodeClient.session.messages({
           path: { id: sessionId },
@@ -92,9 +135,9 @@ export function useAgent(labSessionId: string): UseAgentResult {
         }
 
         setIsLoading(false);
-      } catch (err) {
+      } catch (error) {
         if (cancelled) return;
-        setError(err instanceof Error ? err : new Error("Failed to initialize"));
+        setError(error instanceof Error ? error : new Error("Failed to initialize"));
         setIsLoading(false);
       }
     };
@@ -107,32 +150,34 @@ export function useAgent(labSessionId: string): UseAgentResult {
   }, [labSessionId, opencodeClient]);
 
   useEffect(() => {
-    if (!opencodeSessionId || !opencodeClient) return;
-
+    const globalClient = createGlobalEventClient();
     const abortController = new AbortController();
 
     const subscribe = async () => {
       try {
-        const { stream } = await opencodeClient.event.subscribe({
+        const { stream } = await globalClient.event.subscribe({
           signal: abortController.signal,
         });
 
         for await (const event of stream) {
           if (abortController.signal.aborted) break;
 
+          const eventSessionId = getSessionIdFromEvent(event);
+          if (eventSessionId !== currentOpencodeSessionRef.current) continue;
+
           if (event.type === "message.updated") {
             const info = event.properties.info;
-            setMessages((prev) => {
-              const existing = prev.find((message) => message.id === info.id);
-              if (existing) return prev;
-              return [...prev, { id: info.id, role: info.role, parts: [] }];
+            setMessages((previous) => {
+              const existing = previous.find((message) => message.id === info.id);
+              if (existing) return previous;
+              return [...previous, { id: info.id, role: info.role, parts: [] }];
             });
           }
 
           if (event.type === "message.part.updated") {
             const { part } = event.properties;
-            setMessages((prev) =>
-              prev.map((message) => {
+            setMessages((previous) =>
+              previous.map((message) => {
                 if (message.id !== part.messageID) return message;
                 const partIndex = message.parts.findIndex((existing) => existing.id === part.id);
                 if (partIndex === -1) {
@@ -149,9 +194,9 @@ export function useAgent(labSessionId: string): UseAgentResult {
             setIsSending(false);
           }
         }
-      } catch (err) {
+      } catch (error) {
         if (!abortController.signal.aborted) {
-          console.error("Event stream error:", err);
+          console.error("Event stream error:", error);
         }
       }
     };
@@ -161,7 +206,7 @@ export function useAgent(labSessionId: string): UseAgentResult {
     return () => {
       abortController.abort();
     };
-  }, [opencodeSessionId, opencodeClient]);
+  }, []);
 
   const sendMessage = useCallback(
     async ({ content, modelId }: SendMessageOptions) => {
@@ -185,11 +230,11 @@ export function useAgent(labSessionId: string): UseAgentResult {
         if (response.error) {
           throw new Error(`Failed to send message: ${JSON.stringify(response.error)}`);
         }
-      } catch (err) {
-        const error = err instanceof Error ? err : new Error("Failed to send message");
-        setError(error);
+      } catch (error) {
+        const errorInstance = error instanceof Error ? error : new Error("Failed to send message");
+        setError(errorInstance);
         setIsSending(false);
-        throw error;
+        throw errorInstance;
       }
     },
     [opencodeSessionId, opencodeClient],
