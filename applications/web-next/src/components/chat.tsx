@@ -78,6 +78,72 @@ function ChatHeaderTitle({ children }: { children: ReactNode }) {
   return <span className="text-text font-medium">{children}</span>;
 }
 
+type ChatTab = "chat" | "review" | "frame" | "stream";
+
+type TabsContextValue = {
+  state: { active: ChatTab };
+  actions: { setActive: (tab: ChatTab) => void };
+};
+
+const TabsContext = createContext<TabsContextValue | null>(null);
+
+function useTabs() {
+  const context = use(TabsContext);
+  if (!context) {
+    throw new Error("Tabs components must be used within Chat.Tabs");
+  }
+  return context;
+}
+
+function ChatTabs({
+  children,
+  defaultTab = "chat",
+}: {
+  children: ReactNode;
+  defaultTab?: ChatTab;
+}) {
+  const [active, setActive] = useState<ChatTab>(defaultTab);
+
+  return (
+    <TabsContext value={{ state: { active }, actions: { setActive } }}>{children}</TabsContext>
+  );
+}
+
+function ChatTabList({ children }: { children: ReactNode }) {
+  return <div className="flex items-center gap-px px-3 border-b border-border">{children}</div>;
+}
+
+const tab = tv({
+  base: "px-2 py-1 text-xs cursor-pointer border-b",
+  variants: {
+    active: {
+      true: "text-text border-text",
+      false: "text-text-muted border-transparent hover:text-text-secondary",
+    },
+  },
+});
+
+function ChatTabItem({ value, children }: { value: ChatTab; children: ReactNode }) {
+  const { state, actions } = useTabs();
+  const isActive = state.active === value;
+
+  return (
+    <button
+      type="button"
+      onClick={() => actions.setActive(value)}
+      className={tab({ active: isActive })}
+    >
+      {children}
+    </button>
+  );
+}
+
+function ChatTabContent({ value, children }: { value: ChatTab; children: ReactNode }) {
+  const { state } = useTabs();
+  if (state.active !== value) return null;
+  return <>{children}</>;
+}
+
 function ChatMessageList({ children }: { children: ReactNode }) {
   return <div className="flex-1 overflow-y-auto">{children}</div>;
 }
@@ -132,10 +198,14 @@ const Chat = {
   HeaderProject: ChatHeaderProject,
   HeaderDivider: ChatHeaderDivider,
   HeaderTitle: ChatHeaderTitle,
+  Tabs: ChatTabs,
+  TabList: ChatTabList,
+  Tab: ChatTabItem,
+  TabContent: ChatTabContent,
   MessageList: ChatMessageList,
   Messages: ChatMessages,
   Block: ChatBlock,
   Input: ChatInput,
 };
 
-export { Chat, useChat, type ChatRole };
+export { Chat, useChat, useTabs, type ChatRole, type ChatTab };

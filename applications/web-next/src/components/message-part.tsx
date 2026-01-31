@@ -96,10 +96,7 @@ function MessagePartReasoningHeader({ children }: { children: ReactNode }) {
 function MessagePartReasoningChevron() {
   const { state } = useReasoning();
   return (
-    <ChevronRight
-      size={12}
-      className={cn("text-text-muted transition-transform", state.expanded && "rotate-90")}
-    />
+    <ChevronRight size={12} className={cn("text-text-muted", state.expanded && "rotate-90")} />
   );
 }
 
@@ -211,10 +208,7 @@ function MessagePartToolDuration() {
 function MessagePartToolChevron() {
   const { state } = useTool();
   return (
-    <ChevronRight
-      size={12}
-      className={cn("text-text-muted transition-transform", state.expanded && "rotate-90")}
-    />
+    <ChevronRight size={12} className={cn("text-text-muted", state.expanded && "rotate-90")} />
   );
 }
 

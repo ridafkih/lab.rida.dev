@@ -2,7 +2,7 @@ import { type ComponentProps, forwardRef } from "react";
 import { tv, type VariantProps } from "tailwind-variants";
 
 const iconButton = tv({
-  base: "shrink-0 cursor-pointer transition-colors -m-1.5 p-1.5",
+  base: "shrink-0 cursor-pointer -m-1.5 p-1.5",
   variants: {
     variant: {
       ghost: "text-text-muted hover:text-text",

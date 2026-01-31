@@ -84,26 +84,55 @@ function ConversationView({ sessionId }: { sessionId: string | null }) {
             <Chat.HeaderTitle>{session.title}</Chat.HeaderTitle>
           </Chat.HeaderBreadcrumb>
         </Chat.Header>
-        <Chat.MessageList>
-          <Chat.Messages>
-            {partsMessages?.flatMap((message) =>
-              message.parts.map((part) => (
-                <Chat.Block key={part.id} role={message.role}>
-                  <MessagePart.Root
-                    part={part}
-                    isStreaming={
-                      message.role === "assistant" &&
-                      message === partsMessages[partsMessages.length - 1]
-                    }
-                  />
-                </Chat.Block>
-              )),
-            )}
-          </Chat.Messages>
-          <Chat.Input>
-            <TextAreaGroup.ModelSelector value={model} groups={modelGroups} onChange={setModel} />
-          </Chat.Input>
-        </Chat.MessageList>
+        <Chat.Tabs>
+          <Chat.TabList>
+            <Chat.Tab value="chat">Chat</Chat.Tab>
+            <Chat.Tab value="review">Review</Chat.Tab>
+            <Chat.Tab value="frame">Frame</Chat.Tab>
+            <Chat.Tab value="stream">Stream</Chat.Tab>
+          </Chat.TabList>
+          <Chat.TabContent value="chat">
+            <Chat.MessageList>
+              <Chat.Messages>
+                {partsMessages?.flatMap((message) =>
+                  message.parts.map((part) => (
+                    <Chat.Block key={part.id} role={message.role}>
+                      <MessagePart.Root
+                        part={part}
+                        isStreaming={
+                          message.role === "assistant" &&
+                          message === partsMessages[partsMessages.length - 1]
+                        }
+                      />
+                    </Chat.Block>
+                  )),
+                )}
+              </Chat.Messages>
+              <Chat.Input>
+                <TextAreaGroup.ModelSelector
+                  value={model}
+                  groups={modelGroups}
+                  onChange={setModel}
+                />
+              </Chat.Input>
+            </Chat.MessageList>
+          </Chat.TabContent>
+          <Chat.TabContent value="review">
+            <div className="flex-1 flex items-center justify-center text-text-muted">
+              Review coming soon
+            </div>
+          </Chat.TabContent>
+          <Chat.TabContent value="frame">
+            <div className="flex-1 flex items-center justify-center text-text-muted">
+              Frame coming soon
+            </div>
+          </Chat.TabContent>
+          <Chat.TabContent value="stream">
+            <div className="flex-1 flex items-center justify-center text-text-muted">
+              Stream coming soon
+            </div>
+          </Chat.TabContent>
+        </Chat.Tabs>
       </Chat.Frame>
     </Chat.Provider>
   );
