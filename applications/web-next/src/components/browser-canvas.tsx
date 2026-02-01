@@ -39,6 +39,7 @@ interface RootProps {
 function BrowserCanvasRoot({ sessionId, children }: RootProps) {
   const isEnabled = useMultiplayerEnabled();
   const [bitmap, setBitmap] = useState<ImageBitmap | null>(null);
+  const bitmapRef = useRef<ImageBitmap | null>(null);
   const { useChannel, useChannelEvent } = useMultiplayer();
 
   const browserState = useChannel("sessionBrowserState", { uuid: sessionId });
@@ -47,6 +48,7 @@ function BrowserCanvasRoot({ sessionId, children }: RootProps) {
   useEffect(() => {
     setBitmap((prev) => {
       prev?.close();
+      bitmapRef.current = null;
       return null;
     });
   }, [sessionId]);
@@ -58,6 +60,7 @@ function BrowserCanvasRoot({ sessionId, children }: RootProps) {
       .then((newBitmap) => {
         setBitmap((prev) => {
           prev?.close();
+          bitmapRef.current = newBitmap;
           return newBitmap;
         });
       })
@@ -83,9 +86,9 @@ function BrowserCanvasRoot({ sessionId, children }: RootProps) {
 
   useEffect(() => {
     return () => {
-      bitmap?.close();
+      bitmapRef.current?.close();
     };
-  }, [bitmap]);
+  }, []);
 
   return (
     <BrowserStreamContext
@@ -128,14 +131,14 @@ function BrowserCanvasView({ className }: { className?: string }) {
     const canvas = canvasRef.current;
     if (!canvas || !bitmap) return;
 
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
+    const context = canvas.getContext("2d");
+    if (!context) return;
 
     if (canvas.width !== bitmap.width || canvas.height !== bitmap.height) {
       canvas.width = bitmap.width;
       canvas.height = bitmap.height;
     }
-    ctx.drawImage(bitmap, 0, 0);
+    context.drawImage(bitmap, 0, 0);
   }, [bitmap]);
 
   return (
