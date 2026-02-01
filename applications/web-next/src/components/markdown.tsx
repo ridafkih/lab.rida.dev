@@ -1,8 +1,8 @@
 "use client";
 
-import type { ComponentPropsWithoutRef } from "react";
+import type { ComponentPropsWithoutRef, ReactNode } from "react";
 import { Streamdown } from "streamdown";
-import { code } from "@streamdown/code";
+import { File } from "@pierre/diffs/react";
 import { cn } from "@/lib/cn";
 
 const components = {
@@ -71,21 +71,41 @@ const components = {
 
   code: ({ children, className, ...props }: ComponentPropsWithoutRef<"code">) => (
     <code
-      className={cn("font-mono text-[0.95em] px-1 py-0.5 bg-bg-muted bg-border", className)}
+      className={cn("font-mono text-[0.95em] px-1 py-0.5 bg-border", className)}
       {...props}
     >
       {children}
     </code>
   ),
 
-  pre: ({ children, className, ...props }: ComponentPropsWithoutRef<"pre">) => (
-    <pre
-      className={cn("font-mono text-xs p-3 rounded bg-bg-muted overflow-x-auto", className)}
-      {...props}
-    >
-      {children}
-    </pre>
-  ),
+  pre: ({ children }: ComponentPropsWithoutRef<"pre">) => {
+    const codeChild = children as ReactNode & { props?: { className?: string; children?: string } };
+    const codeClassName = codeChild?.props?.className ?? "";
+    const codeContent = codeChild?.props?.children ?? "";
+
+    if (typeof codeContent !== "string") {
+      return (
+        <pre className="font-mono text-xs p-3 rounded bg-bg-muted overflow-x-auto">{children}</pre>
+      );
+    }
+
+    const langMatch = codeClassName.match(/language-(\w+)/);
+    const lang = langMatch?.[1];
+
+    return (
+      <div className="w-0 min-w-full">
+        <File
+          file={{ name: lang ? `file.${lang}` : "file.txt", contents: codeContent }}
+          options={{
+            theme: "pierre-light",
+            overflow: "scroll",
+            disableFileHeader: true,
+          }}
+          style={{ "--diffs-font-size": "12px" } as React.CSSProperties}
+        />
+      </div>
+    );
+  },
 
   blockquote: ({ children, className, ...props }: ComponentPropsWithoutRef<"blockquote">) => (
     <blockquote
@@ -167,7 +187,6 @@ function Markdown({ children, isStreaming = false }: MarkdownProps) {
     <Streamdown
       className="flex flex-col gap-3"
       mode={isStreaming ? "streaming" : "static"}
-      plugins={{ code }}
       isAnimating={isStreaming}
       components={components}
     >

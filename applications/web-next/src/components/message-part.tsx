@@ -233,7 +233,7 @@ function MessagePartToolDetails({ children }: { children: ReactNode }) {
 }
 
 const detailBlock = tv({
-  base: "px-4 py-2 text-xs bg-bg-muted overflow-x-auto font-mono",
+  base: "px-4 py-2 text-xs bg-bg-muted overflow-x-auto font-mono w-0 min-w-full",
 });
 
 function MessagePartToolInput({ input }: { input: Record<string, unknown> }) {
