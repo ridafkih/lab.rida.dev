@@ -7,7 +7,8 @@ type NavItem = {
 };
 
 export const navItems: NavItem[] = [
-  { label: "Projects", href: "/projects", view: "projects" },
+  { label: "Home", href: "/" },
+  { label: "Editor", href: "/editor" },
   { label: "Settings", href: "/settings", view: "settings" },
 ];
 

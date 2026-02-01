@@ -1,3 +1,4 @@
+import { usePathname, useRouter } from "next/navigation";
 import { tv } from "tailwind-variants";
 import { useAppView, type AppViewType } from "./app-view";
 
@@ -23,23 +24,26 @@ type NavItem = {
 
 type NavProps = {
   items: NavItem[];
-  activeHref?: string;
 };
 
-export function Nav({ items, activeHref }: NavProps) {
+export function Nav({ items }: NavProps) {
   const styles = nav();
+  const router = useRouter();
+  const pathname = usePathname();
   const { view, setView } = useAppView();
 
   const getIsActive = (item: NavItem) => {
     if (item.view) {
       return view === item.view;
     }
-    return activeHref === item.href;
+    return pathname === item.href;
   };
 
   const handleClick = (item: NavItem) => {
     if (item.view) {
       setView(item.view);
+    } else {
+      router.push(item.href);
     }
   };
 
