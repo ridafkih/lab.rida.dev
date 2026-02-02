@@ -53,15 +53,13 @@ export function useOrchestrate(): UseOrchestrateResult {
   useEffect(() => {
     if (!state.orchestrationId) return;
 
-    if (orchestrationStatus.status !== "pending") {
-      setState((prev) => ({
-        ...prev,
-        status: orchestrationStatus.status,
-        projectName: orchestrationStatus.projectName,
-        sessionId: orchestrationStatus.sessionId,
-        errorMessage: orchestrationStatus.errorMessage,
-      }));
-    }
+    setState((prev) => ({
+      ...prev,
+      status: orchestrationStatus.status,
+      projectName: orchestrationStatus.projectName,
+      sessionId: orchestrationStatus.sessionId,
+      errorMessage: orchestrationStatus.errorMessage,
+    }));
   }, [
     state.orchestrationId,
     orchestrationStatus.status,
@@ -97,6 +95,7 @@ export function useOrchestrate(): UseOrchestrateResult {
           orchestrationId: result.orchestrationId,
           projectName: result.projectName,
           sessionId: result.sessionId,
+          status: result.sessionId ? "complete" : prev.status,
         }));
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : "Orchestration failed";

@@ -28,6 +28,32 @@ function toFileStatus(status: SdkFile["status"]): FileStatus {
   return status;
 }
 
+function normalizePath(path: string): string {
+  const segments = path.split("/");
+  const result: string[] = [];
+
+  for (const segment of segments) {
+    if (segment === "..") {
+      result.pop();
+    } else if (segment !== "." && segment !== "") {
+      result.push(segment);
+    }
+  }
+
+  return result.join("/");
+}
+
+function getParentPaths(filePath: string): string[] {
+  const segments = filePath.split("/");
+  const parents: string[] = [];
+
+  for (let i = 1; i < segments.length; i++) {
+    parents.push(segments.slice(0, i).join("/"));
+  }
+
+  return parents;
+}
+
 export function useFileBrowser(sessionId: string | null): {
   state: BrowserState;
   actions: BrowserActions;
@@ -44,6 +70,7 @@ export function useFileBrowser(sessionId: string | null): {
   const [previewPatch, setPreviewPatch] = useState<Patch | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
   const [fileStatuses, setFileStatuses] = useState<Map<string, FileStatus>>(new Map());
+  const [directoriesWithChanges, setDirectoriesWithChanges] = useState<Set<string>>(new Set());
 
   const client = useMemo(() => {
     if (!sessionId) return null;
@@ -59,6 +86,7 @@ export function useFileBrowser(sessionId: string | null): {
     setPreviewContent(null);
     setPreviewPatch(null);
     setFileStatuses(new Map());
+    setDirectoriesWithChanges(new Set());
   }, [sessionId]);
 
   const fetchFileStatuses = useCallback(async () => {
@@ -71,10 +99,19 @@ export function useFileBrowser(sessionId: string | null): {
 
       if (response.data) {
         const statuses = new Map<string, FileStatus>();
+        const dirsWithChanges = new Set<string>();
+
         for (const file of response.data) {
-          statuses.set(file.path, toFileStatus(file.status));
+          const normalizedPath = normalizePath(file.path);
+          statuses.set(normalizedPath, toFileStatus(file.status));
+
+          for (const parentPath of getParentPaths(normalizedPath)) {
+            dirsWithChanges.add(parentPath);
+          }
         }
+
         setFileStatuses(statuses);
+        setDirectoriesWithChanges(dirsWithChanges);
       }
     } catch (error) {
       console.error("Failed to fetch file statuses:", error);
@@ -100,6 +137,7 @@ export function useFileBrowser(sessionId: string | null): {
             name: node.name,
             path: node.path,
             type: node.type,
+            ignored: node.ignored,
           }));
           setRootNodes(nodes);
         }
@@ -154,6 +192,7 @@ export function useFileBrowser(sessionId: string | null): {
               name: node.name,
               path: node.path,
               type: node.type,
+              ignored: node.ignored,
             }));
             setLoadedContents((prev) => new Map(prev).set(path, nodes));
           }
@@ -220,6 +259,7 @@ export function useFileBrowser(sessionId: string | null): {
     previewPatch,
     previewLoading,
     fileStatuses,
+    directoriesWithChanges,
   };
 
   const actions: BrowserActions = {

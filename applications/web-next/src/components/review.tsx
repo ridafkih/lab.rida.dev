@@ -44,6 +44,7 @@ type FileNode = {
   name: string;
   path: string;
   type: "file" | "directory";
+  ignored?: boolean;
 };
 
 type PatchHunk = {
@@ -71,6 +72,7 @@ type BrowserState = {
   previewPatch: Patch | null;
   previewLoading: boolean;
   fileStatuses: Map<string, FileStatus>;
+  directoriesWithChanges: Set<string>;
 };
 
 type BrowserActions = {
@@ -174,6 +176,7 @@ function ReviewProvider({ children, files, onDismiss, onSubmitFeedback, browser 
     previewPatch: null,
     previewLoading: false,
     fileStatuses: new Map(),
+    directoriesWithChanges: new Set(),
   };
 
   const defaultBrowserActions: BrowserActions = {
@@ -517,23 +520,9 @@ function ReviewPreviewView({ children }: { children?: ReactNode }) {
   return <div className="contents">{children}</div>;
 }
 
-const statusBadge = tv({
-  base: "px-1.5 py-0.5 text-[10px] font-medium rounded",
-  variants: {
-    status: {
-      added: "bg-green-500/20 text-green-500",
-      modified: "bg-yellow-500/20 text-yellow-500",
-      deleted: "bg-red-500/20 text-red-500",
-    },
-  },
-});
-
 function ReviewPreviewHeader({ children }: { children?: ReactNode }) {
   const { state, actions } = useReview();
   const isVisible = state.view === "preview" && !!state.browser.selectedPath;
-  const fileStatus = state.browser.selectedPath
-    ? state.browser.fileStatuses.get(state.browser.selectedPath)
-    : undefined;
 
   return (
     <div
@@ -543,7 +532,6 @@ function ReviewPreviewHeader({ children }: { children?: ReactNode }) {
       <span className="flex-1 truncate text-xs text-text-muted ">
         {state.browser.selectedPath ?? "\u00A0"}
       </span>
-      {fileStatus && <span className={statusBadge({ status: fileStatus })}>{fileStatus}</span>}
       {children}
       <button
         type="button"
@@ -747,9 +735,9 @@ function ReviewBrowserTree() {
 }
 
 const fileStatusColors = {
-  added: "text-green-500",
-  modified: "text-yellow-500",
-  deleted: "text-red-500",
+  added: "text-emerald-500",
+  modified: "text-amber-500",
+  deleted: "text-rose-500",
 } as const;
 
 function TreeNodes({ nodes, depth }: { nodes: FileNode[]; depth: number }) {
@@ -764,6 +752,8 @@ function TreeNodes({ nodes, depth }: { nodes: FileNode[]; depth: number }) {
         const children = state.browser.loadedContents.get(node.path) ?? [];
         const isDirectory = node.type === "directory";
         const fileStatus = state.browser.fileStatuses.get(node.path);
+        const isIgnored = node.ignored === true;
+        const hasChanges = isDirectory && state.browser.directoriesWithChanges.has(node.path);
 
         const handleClick = () => {
           if (isDirectory) {
@@ -776,7 +766,25 @@ function TreeNodes({ nodes, depth }: { nodes: FileNode[]; depth: number }) {
 
         const FileIcon =
           fileStatus === "added" ? FilePlus : fileStatus === "deleted" ? FileX : File;
-        const fileIconColor = fileStatus ? fileStatusColors[fileStatus] : "text-text-muted";
+
+        const getFileIconColor = () => {
+          if (isIgnored) return "text-text-muted/80";
+          if (fileStatus) return fileStatusColors[fileStatus];
+          return "text-text-muted";
+        };
+
+        const getFolderColor = () => {
+          if (isIgnored) return "text-text-muted/80";
+          if (hasChanges) return fileStatusColors.modified;
+          return "text-text-muted";
+        };
+
+        const getTextColor = () => {
+          if (isIgnored) return "text-text-muted/80";
+          if (fileStatus) return fileStatusColors[fileStatus];
+          if (hasChanges) return fileStatusColors.modified;
+          return undefined;
+        };
 
         return (
           <div key={node.path}>
@@ -786,6 +794,7 @@ function TreeNodes({ nodes, depth }: { nodes: FileNode[]; depth: number }) {
               className={cn(
                 "flex items-center gap-1 w-full px-2 py-0.5 text-left text-text-muted hover:bg-bg-muted",
                 isSelected && "bg-bg-muted",
+                isIgnored && "opacity-80",
               )}
               style={{ paddingLeft: `${depth * 12 + 8}px` }}
             >
@@ -800,18 +809,11 @@ function TreeNodes({ nodes, depth }: { nodes: FileNode[]; depth: number }) {
               )}
               {!isDirectory && <span className="size-3" />}
               {isDirectory ? (
-                <Folder className="size-3 text-text-muted" />
+                <Folder className={cn("size-3", getFolderColor())} />
               ) : (
-                <FileIcon className={cn("size-3", fileIconColor)} />
+                <FileIcon className={cn("size-3", getFileIconColor())} />
               )}
-              <span
-                className={cn(
-                  "flex-1 truncate text-xs",
-                  fileStatus && fileStatusColors[fileStatus],
-                )}
-              >
-                {node.name}
-              </span>
+              <span className={cn("flex-1 truncate text-xs", getTextColor())}>{node.name}</span>
             </button>
             {isDirectory && isExpanded && children.length > 0 && (
               <TreeNodes nodes={children} depth={depth + 1} />

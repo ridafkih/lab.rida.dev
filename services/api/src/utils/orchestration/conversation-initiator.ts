@@ -1,6 +1,8 @@
 import { opencode } from "../../clients/opencode";
 import { updateSessionOpencodeId } from "../repositories/session.repository";
 import { resolveWorkspacePath } from "../workspace/resolve-path";
+import { publisher } from "../../clients/publisher";
+import { setLastMessage } from "../monitors/last-message-store";
 
 export interface InitiateConversationOptions {
   sessionId: string;
@@ -32,4 +34,7 @@ export async function initiateConversation(options: InitiateConversationOptions)
   if (promptResponse.error) {
     throw new Error(`Failed to send initial message: ${JSON.stringify(promptResponse.error)}`);
   }
+
+  setLastMessage(sessionId, task);
+  publisher.publishDelta("sessionMetadata", { uuid: sessionId }, { lastMessage: task });
 }
