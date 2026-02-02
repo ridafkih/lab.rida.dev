@@ -15,7 +15,7 @@ const navItems = [
 
 function Sidebar({ selectedSessionId }: { selectedSessionId: string | null }) {
   return (
-    <aside className="relative flex grow flex-col border-r border-border bg-bg">
+    <aside className="relative flex grow flex-col min-w-0 w-full border-r border-border bg-bg">
       <ProjectNavigatorView selectedSessionId={selectedSessionId} />
     </aside>
   );
