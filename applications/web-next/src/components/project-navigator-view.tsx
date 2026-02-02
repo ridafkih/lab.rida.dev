@@ -11,6 +11,7 @@ import { useProjects, useSessions, useCreateSession, useSessionCreation } from "
 import { prefetchSessionMessages } from "@/lib/use-agent";
 import { prefetchSessionContainers } from "@/lib/api";
 import { useSessionStatus } from "@/lib/use-session-status";
+import { useMultiplayer } from "@/lib/multiplayer";
 import { useSessionsSync } from "@/lib/use-sessions-sync";
 import type { Project, Session } from "@lab/client";
 
@@ -20,6 +21,8 @@ type SessionItemProps = {
 };
 
 function SessionItem({ session, isSelected }: SessionItemProps) {
+  const { useChannel } = useMultiplayer();
+  const metadata = useChannel("sessionMetadata", { uuid: session.id });
   const status = useSessionStatus(session, { subscribeToEvents: isSelected });
 
   const handleMouseDown = () => {
@@ -32,13 +35,16 @@ function SessionItem({ session, isSelected }: SessionItemProps) {
       <ProjectNavigator.Item selected={isSelected} onMouseDown={handleMouseDown}>
         <StatusIcon status={status} />
         <Hash>{session.id.slice(0, 6)}</Hash>
-        {session.title ? (
-          <ProjectNavigator.ItemTitle>{session.title}</ProjectNavigator.ItemTitle>
-        ) : (
-          <ProjectNavigator.ItemEmptyTitle>Unnamed Session</ProjectNavigator.ItemEmptyTitle>
-        )}
-        <ProjectNavigator.ItemDescription />
-        <Avatar />
+        <div className="shrink-0">
+          <ProjectNavigator.ItemTitle empty={!session.title}>
+            {session.title}
+          </ProjectNavigator.ItemTitle>
+        </div>
+        <div className="flex gap-2 justify-end grow min-w-0">
+          <ProjectNavigator.ItemDescription>
+            {metadata.lastMessage}
+          </ProjectNavigator.ItemDescription>
+        </div>
       </ProjectNavigator.Item>
     </Link>
   );
@@ -97,7 +103,7 @@ function ProjectSessionsList({ project, selectedSessionId }: ProjectSessionsList
       {showSkeleton && (
         <ProjectNavigator.ItemSkeleton>
           <ProjectNavigator.ItemSkeletonBlock />
-          <ProjectNavigator.ItemEmptyTitle>Spawning Session...</ProjectNavigator.ItemEmptyTitle>
+          <ProjectNavigator.ItemTitle empty>Unnamed Session</ProjectNavigator.ItemTitle>
         </ProjectNavigator.ItemSkeleton>
       )}
     </ProjectNavigator.List>

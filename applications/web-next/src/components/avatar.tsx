@@ -1,7 +1,7 @@
 import { tv, type VariantProps } from "tailwind-variants";
 
 const avatar = tv({
-  base: "shrink-0 rounded-full ml-auto",
+  base: "shrink-0 rounded-full",
   variants: {
     size: {
       sm: "size-4",

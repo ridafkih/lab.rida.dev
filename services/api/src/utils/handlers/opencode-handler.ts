@@ -6,11 +6,27 @@ import type { PromptService } from "../../types/prompt";
 import { findSessionById } from "../repositories/session.repository";
 import { getProjectSystemPrompt } from "../repositories/project.repository";
 import { getSessionContainersWithPorts } from "../repositories/container.repository";
+import { publisher } from "../../clients/publisher";
 
 const PROMPT_ENDPOINTS = ["/session/", "/prompt", "/message"];
 
 function shouldInjectSystemPrompt(path: string, method: string): boolean {
   return method === "POST" && PROMPT_ENDPOINTS.some((endpoint) => path.includes(endpoint));
+}
+
+function extractUserMessageText(body: Record<string, unknown>): string | null {
+  const parts = body.parts;
+  if (!Array.isArray(parts)) return null;
+
+  const textPart = parts.find(
+    (part): part is { type: string; text: string } =>
+      typeof part === "object" &&
+      part !== null &&
+      part.type === "text" &&
+      typeof part.text === "string",
+  );
+
+  return textPart?.text ?? null;
 }
 
 async function getSessionData(labSessionId: string) {
@@ -39,12 +55,24 @@ async function buildProxyBody(
   const hasBody = ["POST", "PUT", "PATCH"].includes(request.method);
   if (!hasBody) return null;
 
-  if (!labSessionId || !shouldInjectSystemPrompt(path, request.method)) {
+  const isPromptEndpoint = shouldInjectSystemPrompt(path, request.method);
+  if (!labSessionId || !isPromptEndpoint) {
     return request.body;
   }
 
+  const originalBody = await request.json();
+
+  const userMessageText = extractUserMessageText(originalBody);
+  if (userMessageText) {
+    publisher.publishDelta(
+      "sessionMetadata",
+      { uuid: labSessionId },
+      { lastMessage: userMessageText },
+    );
+  }
+
   const sessionData = await getSessionData(labSessionId);
-  if (!sessionData) return request.body;
+  if (!sessionData) return JSON.stringify(originalBody);
 
   const containers = await getContainerInfos(labSessionId);
   const promptContext = createPromptContext({
@@ -55,9 +83,8 @@ async function buildProxyBody(
   });
 
   const { text: composedPrompt } = promptService.compose(promptContext);
-  if (!composedPrompt) return request.body;
+  if (!composedPrompt) return JSON.stringify(originalBody);
 
-  const originalBody = await request.json();
   const existingSystem = originalBody.system ?? "";
   const combinedSystem = composedPrompt + (existingSystem ? "\n\n" + existingSystem : "");
 

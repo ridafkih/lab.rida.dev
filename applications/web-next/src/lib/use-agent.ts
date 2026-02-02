@@ -29,7 +29,7 @@ interface UseAgentResult {
   isSending: boolean;
 }
 
-interface CachedSessionData {
+export interface CachedSessionData {
   opencodeSessionId: string;
   messages: MessageState[];
 }

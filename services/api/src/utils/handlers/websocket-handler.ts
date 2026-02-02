@@ -12,6 +12,7 @@ import {
   loadSessions,
   loadSessionContainers,
   loadSessionChangedFiles,
+  loadSessionMetadata,
 } from "../snapshots/snapshot-loaders";
 
 export { type Auth } from "../../types/websocket";
@@ -27,7 +28,7 @@ export function createWebSocketHandlers(browserService: BrowserService) {
       getSnapshot: loadSessions,
     },
     sessionMetadata: {
-      getSnapshot: async () => ({ title: "", participantCount: 0 }),
+      getSnapshot: async ({ params }) => loadSessionMetadata(params.uuid),
     },
     sessionContainers: {
       getSnapshot: async ({ params }) => loadSessionContainers(params.uuid),

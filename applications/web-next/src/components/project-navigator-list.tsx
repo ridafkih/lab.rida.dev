@@ -133,16 +133,22 @@ function ProjectNavigatorItemSkeletonBlock() {
   return <div className="h-3 w-full max-w-10 rounded bg-bg-hover animate-pulse" />;
 }
 
-function ProjectNavigatorItemTitle({ children }: { children: ReactNode }) {
+function ProjectNavigatorItemTitle({
+  children,
+  empty = false,
+}: {
+  children: ReactNode;
+  empty?: boolean;
+}) {
+  if (empty) {
+    return <span className="text-text-muted italic truncate">Unnamed Session</span>;
+  }
+
   return <span className="text-text truncate">{children}</span>;
 }
 
 function ProjectNavigatorItemDescription({ children }: { children?: ReactNode }) {
-  return <span className="text-text-muted truncate ml-auto max-w-1/2">{children}</span>;
-}
-
-function ProjectNavigatorItemEmptyTitle({ children }: { children: ReactNode }) {
-  return <span className="text-text-muted italic truncate">{children}</span>;
+  return <span className="text-text-muted text-right truncate">{children}</span>;
 }
 
 const ProjectNavigator = {
@@ -152,7 +158,6 @@ const ProjectNavigator = {
   HeaderCount: ProjectNavigatorHeaderCount,
   Item: ProjectNavigatorItem,
   ItemTitle: ProjectNavigatorItemTitle,
-  ItemEmptyTitle: ProjectNavigatorItemEmptyTitle,
   ItemDescription: ProjectNavigatorItemDescription,
   ItemSkeleton: ProjectNavigatorItemSkeleton,
   ItemSkeletonBlock: ProjectNavigatorItemSkeletonBlock,

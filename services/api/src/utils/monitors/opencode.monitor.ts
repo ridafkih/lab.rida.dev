@@ -28,6 +28,11 @@ interface MessageUpdatedEvent {
   properties: { parts: MessagePart[] };
 }
 
+interface MessagePartUpdatedEvent {
+  type: "message.part.updated";
+  properties: { part: MessagePart };
+}
+
 function hasProperty<T extends string>(obj: unknown, key: T): obj is Record<T, unknown> {
   return typeof obj === "object" && obj !== null && key in obj;
 }
@@ -46,6 +51,16 @@ function parseMessageUpdatedEvent(event: unknown): MessageUpdatedEvent | null {
   if (!hasProperty(event.properties, "parts")) return null;
   if (!Array.isArray(event.properties.parts)) return null;
   return { type: "message.updated", properties: { parts: event.properties.parts } };
+}
+
+function parseMessagePartUpdatedEvent(event: unknown): MessagePartUpdatedEvent | null {
+  if (!hasProperty(event, "type") || event.type !== "message.part.updated") return null;
+  if (!hasProperty(event, "properties")) return null;
+  if (!hasProperty(event.properties, "part")) return null;
+  return {
+    type: "message.part.updated",
+    properties: { part: event.properties.part as MessagePart },
+  };
 }
 
 function toReviewableFile(diff: FileDiff) {
@@ -80,6 +95,13 @@ function processMessageUpdated(labSessionId: string, event: MessageUpdatedEvent)
   }
 }
 
+function processMessagePartUpdated(labSessionId: string, event: MessagePartUpdatedEvent): void {
+  const part = event.properties.part;
+  if (part.type === "text" && part.text) {
+    publisher.publishDelta("sessionMetadata", { uuid: labSessionId }, { lastMessage: part.text });
+  }
+}
+
 function processEvent(labSessionId: string, event: unknown): void {
   const diffEvent = parseSessionDiffEvent(event);
   if (diffEvent) {
@@ -90,6 +112,12 @@ function processEvent(labSessionId: string, event: unknown): void {
   const messageEvent = parseMessageUpdatedEvent(event);
   if (messageEvent) {
     processMessageUpdated(labSessionId, messageEvent);
+    return;
+  }
+
+  const partEvent = parseMessagePartUpdatedEvent(event);
+  if (partEvent) {
+    processMessagePartUpdated(labSessionId, partEvent);
   }
 }
 

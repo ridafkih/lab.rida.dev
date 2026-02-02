@@ -3,7 +3,11 @@ import { isContainerStatus } from "../../types/container";
 import { getChangeType } from "../../types/file";
 import { formatProxyUrl } from "../../types/session";
 import { findProjectSummaries } from "../repositories/project.repository";
-import { findAllSessionSummaries, getSessionOpencodeId } from "../repositories/session.repository";
+import {
+  findAllSessionSummaries,
+  getSessionOpencodeId,
+  findSessionById,
+} from "../repositories/session.repository";
 import {
   getSessionContainersWithDetails,
   findPortsByContainerId,
@@ -66,6 +70,28 @@ export async function loadSessionChangedFiles(sessionId: string) {
   }
 }
 
+export async function loadSessionMetadata(sessionId: string) {
+  const session = await findSessionById(sessionId);
+  const title = session?.title ?? "";
+
+  if (!session?.opencodeSessionId) {
+    return { title, participantCount: 0 };
+  }
+
+  try {
+    const response = await opencode.session.messages({ sessionID: session.opencodeSessionId });
+    const messages = response.data ?? [];
+    const lastMessage = messages[messages.length - 1];
+    const textPart = lastMessage?.parts?.find(
+      (part: { type: string; text?: string }) => part.type === "text" && part.text,
+    );
+
+    return { title, lastMessage: textPart?.text, participantCount: 0 };
+  } catch {
+    return { title, participantCount: 0 };
+  }
+}
+
 type ChannelName = keyof AppSchema["channels"];
 type SnapshotLoader = (session: string | null) => Promise<unknown>;
 
@@ -75,7 +101,7 @@ export function createSnapshotLoaders(
   return {
     projects: async () => loadProjects(),
     sessions: async () => loadSessions(),
-    sessionMetadata: async () => ({ title: "", participantCount: 0 }),
+    sessionMetadata: async (session) => (session ? loadSessionMetadata(session) : null),
     sessionContainers: async (session) => (session ? loadSessionContainers(session) : null),
     sessionTyping: async () => [],
     sessionPromptEngineers: async () => [],
