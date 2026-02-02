@@ -146,7 +146,14 @@ export function ProjectCreate() {
   const handleAddContainer = () => {
     setContainers([
       ...containers,
-      { id: crypto.randomUUID(), image: "", ports: "", envVars: [], dependencies: [] },
+      {
+        id: crypto.randomUUID(),
+        image: "",
+        ports: "",
+        isWorkspace: false,
+        envVars: [],
+        dependencies: [],
+      },
     ]);
   };
 
@@ -196,6 +203,10 @@ export function ProjectCreate() {
         });
 
         draftIdToRealId.set(containerDraft.id, createdContainer.id);
+
+        if (containerDraft.isWorkspace) {
+          await api.containers.setWorkspace(project.id, createdContainer.id, true);
+        }
       }
 
       await mutate("projects");

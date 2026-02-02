@@ -1,7 +1,7 @@
 "use client";
 
 import { createContext, use, type ReactNode } from "react";
-import { Plus, X } from "lucide-react";
+import { Plus, X, Folder } from "lucide-react";
 import { tv } from "tailwind-variants";
 import { FormInput, InputGroup } from "@/components/form-input";
 
@@ -29,6 +29,15 @@ const styles = {
   field: tv({
     base: "flex flex-col gap-1",
   }),
+  workspaceToggle: tv({
+    base: "flex items-center gap-2 px-2 py-1.5 border border-border text-xs cursor-pointer hover:bg-bg",
+    variants: {
+      active: {
+        true: "border-blue-500/50 text-blue-500 bg-blue-500/10",
+        false: "text-text-muted",
+      },
+    },
+  }),
 };
 
 type EnvVar = {
@@ -47,6 +56,7 @@ type ContainerDraft = {
   id: string;
   image: string;
   ports: string;
+  isWorkspace: boolean;
   envVars: EnvVar[];
   dependencies: DependencyDraft[];
 };
@@ -359,6 +369,26 @@ function ContainerEditorDependenciesSection() {
   );
 }
 
+function ContainerEditorWorkspaceToggle() {
+  const { state, actions } = useContainerEditor();
+  const isWorkspace = state.container.isWorkspace;
+
+  const handleToggle = () => {
+    actions.update((container) => ({ ...container, isWorkspace: !container.isWorkspace }));
+  };
+
+  return (
+    <button
+      type="button"
+      onClick={handleToggle}
+      className={styles.workspaceToggle({ active: isWorkspace })}
+    >
+      <Folder size={12} fill={isWorkspace ? "currentColor" : "none"} />
+      {isWorkspace ? "Workspace container" : "Set as workspace"}
+    </button>
+  );
+}
+
 export const ContainerEditor = {
   Provider: ContainerEditorProvider,
   Frame: ContainerEditorFrame,
@@ -367,6 +397,7 @@ export const ContainerEditor = {
   PortsField: ContainerEditorPortsField,
   EnvVarsSection: ContainerEditorEnvVarsSection,
   DependenciesSection: ContainerEditorDependenciesSection,
+  WorkspaceToggle: ContainerEditorWorkspaceToggle,
 };
 
 export type { ContainerDraft, EnvVar, DependencyDraft };

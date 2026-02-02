@@ -326,3 +326,45 @@ export async function validateDependencies(
 
   return { valid: errors.length === 0, errors };
 }
+
+export async function getWorkspaceContainerId(sessionId: string): Promise<string | null> {
+  const result = await db
+    .select({ containerId: sessionContainers.containerId })
+    .from(sessionContainers)
+    .innerJoin(containers, eq(sessionContainers.containerId, containers.id))
+    .where(and(eq(sessionContainers.sessionId, sessionId), eq(containers.isWorkspace, true)))
+    .limit(1);
+
+  return result[0]?.containerId ?? null;
+}
+
+export async function getWorkspaceContainerIdByProjectId(
+  projectId: string,
+): Promise<string | null> {
+  const result = await db
+    .select({ id: containers.id })
+    .from(containers)
+    .where(and(eq(containers.projectId, projectId), eq(containers.isWorkspace, true)))
+    .limit(1);
+
+  return result[0]?.id ?? null;
+}
+
+export async function setWorkspaceContainer(projectId: string, containerId: string): Promise<void> {
+  await db
+    .update(containers)
+    .set({ isWorkspace: false })
+    .where(eq(containers.projectId, projectId));
+
+  await db
+    .update(containers)
+    .set({ isWorkspace: true })
+    .where(and(eq(containers.id, containerId), eq(containers.projectId, projectId)));
+}
+
+export async function clearWorkspaceContainer(projectId: string): Promise<void> {
+  await db
+    .update(containers)
+    .set({ isWorkspace: false })
+    .where(eq(containers.projectId, projectId));
+}

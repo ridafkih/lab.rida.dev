@@ -19,7 +19,7 @@ function ContentText({ children, maxLines = 10, collapsible = true }: ContentTex
 
   return (
     <div className="flex flex-col gap-1">
-      <pre className="text-xs font-mono whitespace-pre-wrap break-words">
+      <pre className="text-xs font-mono whitespace-pre-wrap wrap-break-word">
         {visibleLines.join("\n")}
       </pre>
       {needsTruncation && (

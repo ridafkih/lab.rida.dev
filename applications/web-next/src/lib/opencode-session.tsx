@@ -49,13 +49,11 @@ export function OpenCodeSessionProvider({ sessionId, children }: OpenCodeSession
       headers: { "X-Lab-Session-Id": sessionId },
     });
 
-    const directory = `/workspaces/${sessionId}`;
-
     const connect = async (attempt = 0): Promise<void> => {
       if (signal.aborted) return;
 
       try {
-        const { stream } = await client.event.subscribe({ query: { directory }, signal });
+        const { stream } = await client.event.subscribe({ query: {}, signal });
 
         for await (const event of stream) {
           if (signal.aborted) break;

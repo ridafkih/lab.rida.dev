@@ -50,8 +50,6 @@ export function useFileBrowser(sessionId: string | null): {
     return createSessionClient(sessionId);
   }, [sessionId]);
 
-  const directory = sessionId ? `/workspaces/${sessionId}` : undefined;
-
   useEffect(() => {
     setRootNodes([]);
     setExpandedPaths(new Set());
@@ -64,11 +62,11 @@ export function useFileBrowser(sessionId: string | null): {
   }, [sessionId]);
 
   const fetchFileStatuses = useCallback(async () => {
-    if (!client || !directory) return;
+    if (!client) return;
 
     try {
       const response = await client.file.status({
-        query: { directory },
+        query: {},
       });
 
       if (response.data) {
@@ -81,10 +79,10 @@ export function useFileBrowser(sessionId: string | null): {
     } catch (error) {
       console.error("Failed to fetch file statuses:", error);
     }
-  }, [client, directory]);
+  }, [client]);
 
   useEffect(() => {
-    if (!client || !directory) return;
+    if (!client) return;
 
     let cancelled = false;
 
@@ -92,7 +90,7 @@ export function useFileBrowser(sessionId: string | null): {
       setRootLoading(true);
       try {
         const response = await client.file.list({
-          query: { path: ".", directory },
+          query: { path: "." },
         });
 
         if (cancelled) return;
@@ -120,7 +118,7 @@ export function useFileBrowser(sessionId: string | null): {
     return () => {
       cancelled = true;
     };
-  }, [client, directory, fetchFileStatuses]);
+  }, [client, fetchFileStatuses]);
 
   useEffect(() => {
     const handleEvent = (event: { type: string }) => {
@@ -143,12 +141,12 @@ export function useFileBrowser(sessionId: string | null): {
         return;
       }
 
-      if (!loadedContents.has(path) && client && directory) {
+      if (!loadedContents.has(path) && client) {
         setLoadingPaths((prev) => new Set([...prev, path]));
 
         try {
           const response = await client.file.list({
-            query: { path, directory },
+            query: { path },
           });
 
           if (response.data) {
@@ -172,12 +170,12 @@ export function useFileBrowser(sessionId: string | null): {
 
       setExpandedPaths((prev) => new Set([...prev, path]));
     },
-    [client, directory, expandedPaths, loadedContents],
+    [client, expandedPaths, loadedContents],
   );
 
   const selectFile = useCallback(
     async (path: string) => {
-      if (!client || !directory) return;
+      if (!client) return;
 
       setSelectedPath(path);
       setPreviewLoading(true);
@@ -186,7 +184,7 @@ export function useFileBrowser(sessionId: string | null): {
 
       try {
         const response = await client.file.read({
-          query: { path, directory },
+          query: { path },
         });
 
         if (response.data && response.data.type === "text") {
@@ -202,7 +200,7 @@ export function useFileBrowser(sessionId: string | null): {
         setPreviewLoading(false);
       }
     },
-    [client, directory],
+    [client],
   );
 
   const clearFileSelection = useCallback(() => {

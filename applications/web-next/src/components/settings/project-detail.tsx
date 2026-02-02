@@ -7,9 +7,9 @@ import { useSWRConfig } from "swr";
 import { ArrowLeft } from "lucide-react";
 import { tv } from "tailwind-variants";
 import { FormInput } from "@/components/form-input";
+import { ContainerCard } from "@/components/settings/container-card";
 import { useProjects } from "@/lib/hooks";
 import { api } from "@/lib/api";
-import type { ProjectContainer } from "@lab/client";
 
 const backButton = tv({
   base: "flex items-center gap-1.5 text-xs text-text-muted hover:text-text",
@@ -24,7 +24,7 @@ const primaryButton = tv({
 });
 
 const buttonRow = tv({
-  base: "flex items-center gap-2",
+  base: "flex items-center gap-1",
 });
 
 const containersSection = tv({
@@ -35,53 +35,8 @@ const listSectionEmpty = tv({
   base: "text-xs text-text-muted",
 });
 
-const containerDisplay = tv({
-  slots: {
-    root: "flex flex-col gap-1.5 p-2 border border-border bg-bg-muted",
-    header: "text-xs text-text-secondary",
-    image: "text-xs text-text font-mono",
-    meta: "text-xs text-text-muted",
-  },
-});
-
 function SettingsFormField({ children }: { children: React.ReactNode }) {
   return <div className="flex flex-col gap-1">{children}</div>;
-}
-
-function getContainerLabel(container: ProjectContainer): string {
-  const imageName = container.image.split("/").pop() || container.image;
-  return imageName.split(":")[0] || container.image;
-}
-
-function ContainerDisplay({
-  container,
-  allContainers,
-}: {
-  container: ProjectContainer;
-  allContainers: ProjectContainer[];
-}) {
-  const styles = containerDisplay();
-  const portsList = container.ports.length > 0 ? container.ports.join(", ") : "none";
-
-  const dependencyLabels = container.dependencies
-    .map((dependency) => {
-      const depContainer = allContainers.find(
-        (otherContainer) => otherContainer.id === dependency.dependsOnContainerId,
-      );
-      return depContainer ? getContainerLabel(depContainer) : null;
-    })
-    .filter((label): label is string => label !== null);
-
-  return (
-    <div className={styles.root()}>
-      <span className={styles.header()}>{getContainerLabel(container)}</span>
-      <span className={styles.image()}>{container.image}</span>
-      <span className={styles.meta()}>Ports: {portsList}</span>
-      {dependencyLabels.length > 0 && (
-        <span className={styles.meta()}>Depends on: {dependencyLabels.join(", ")}</span>
-      )}
-    </div>
-  );
 }
 
 type ProjectDetailProps = {
@@ -146,6 +101,8 @@ export function ProjectDetail({ projectId }: ProjectDetailProps) {
     }
   };
 
+  const handleWorkspaceChange = () => mutate("projects");
+
   return (
     <div className="flex-1 overflow-y-auto p-3">
       <div className="flex flex-col gap-1 max-w-sm">
@@ -186,11 +143,25 @@ export function ProjectDetail({ projectId }: ProjectDetailProps) {
           {containers.length > 0 && (
             <div className="flex flex-col gap-2">
               {containers.map((container) => (
-                <ContainerDisplay
+                <ContainerCard.Provider
                   key={container.id}
                   container={container}
+                  projectId={projectId}
                   allContainers={containers}
-                />
+                  onWorkspaceChange={handleWorkspaceChange}
+                >
+                  <ContainerCard.Frame>
+                    <ContainerCard.Header>
+                      <ContainerCard.Title />
+                    </ContainerCard.Header>
+                    <ContainerCard.Image />
+                    <ContainerCard.Ports />
+                    <ContainerCard.Dependencies />
+                    <ContainerCard.Actions>
+                      <ContainerCard.WorkspaceToggle />
+                    </ContainerCard.Actions>
+                  </ContainerCard.Frame>
+                </ContainerCard.Provider>
               ))}
             </div>
           )}

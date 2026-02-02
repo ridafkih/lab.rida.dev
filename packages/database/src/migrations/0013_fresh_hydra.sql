@@ -1,0 +1,1 @@
+ALTER TABLE "containers" ADD COLUMN "is_workspace" boolean DEFAULT false NOT NULL;

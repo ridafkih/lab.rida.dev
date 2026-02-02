@@ -1,6 +1,6 @@
 import { opencode } from "../../clients/opencode";
 import { updateSessionOpencodeId } from "../repositories/session.repository";
-import { formatWorkspacePath } from "../../types/session";
+import { resolveWorkspacePath } from "../workspace/resolve-path";
 
 export interface InitiateConversationOptions {
   sessionId: string;
@@ -10,7 +10,7 @@ export interface InitiateConversationOptions {
 
 export async function initiateConversation(options: InitiateConversationOptions): Promise<void> {
   const { sessionId, task, modelId } = options;
-  const workspacePath = formatWorkspacePath(sessionId);
+  const workspacePath = await resolveWorkspacePath(sessionId);
 
   const createResponse = await opencode.session.create({ directory: workspacePath });
   if (createResponse.error || !createResponse.data) {

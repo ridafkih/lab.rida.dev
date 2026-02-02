@@ -70,6 +70,12 @@ export function createClient(config: ClientConfig) {
           method: "POST",
           body: JSON.stringify(input),
         }),
+
+      setWorkspace: (projectId: string, containerId: string, isWorkspace: boolean) =>
+        request<void>(`/projects/${projectId}/containers/${containerId}`, {
+          method: "PATCH",
+          body: JSON.stringify({ isWorkspace }),
+        }),
     },
 
     sessions: {

@@ -22,12 +22,12 @@ function FallbackRenderer({ input, output, error, status }: ToolRendererProps) {
   return (
     <div className="flex flex-col">
       {input && Object.keys(input).length > 0 && (
-        <pre className="px-4 py-2 text-xs font-mono bg-bg-muted w-0 min-w-full whitespace-pre-wrap break-words">
+        <pre className="px-4 py-2 text-xs font-mono bg-bg-muted w-0 min-w-full whitespace-pre-wrap wrap-break-word">
           {flattenInput(input)}
         </pre>
       )}
       {output && status === "completed" && (
-        <pre className="px-4 py-2 text-xs font-mono bg-bg-muted w-0 min-w-full whitespace-pre-wrap break-words max-h-40 overflow-y-auto">
+        <pre className="px-4 py-2 text-xs font-mono bg-bg-muted w-0 min-w-full whitespace-pre-wrap wrap-break-word max-h-40 overflow-y-auto">
           {output}
         </pre>
       )}

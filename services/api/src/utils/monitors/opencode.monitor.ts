@@ -1,8 +1,8 @@
 import { opencode } from "../../clients/opencode";
 import { TIMING } from "../../config/constants";
 import { getChangeType } from "../../types/file";
-import { formatWorkspacePath } from "../../types/session";
 import { findRunningSessions } from "../repositories/session.repository";
+import { resolveWorkspacePathBySession } from "../workspace/resolve-path";
 import { publisher } from "../../clients/publisher";
 import { setInferenceStatus, clearInferenceStatus } from "./inference-status-store";
 import { setLastMessage, clearLastMessage } from "./last-message-store";
@@ -191,7 +191,7 @@ class SessionTracker {
   }
 
   private async monitor(): Promise<void> {
-    const directory = formatWorkspacePath(this.labSessionId);
+    const directory = await resolveWorkspacePathBySession(this.labSessionId);
 
     while (this.isActive) {
       try {

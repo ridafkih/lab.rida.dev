@@ -18,7 +18,7 @@ function ContentError({ children, maxLines = 5 }: ContentErrorProps) {
 
   return (
     <div className="flex flex-col gap-1 text-red-500">
-      <pre className="text-xs font-mono whitespace-pre-wrap break-words">
+      <pre className="text-xs font-mono whitespace-pre-wrap wrap-break-word">
         {expanded || !needsTruncation ? children : visibleLines.join("\n")}
       </pre>
       {needsTruncation && (

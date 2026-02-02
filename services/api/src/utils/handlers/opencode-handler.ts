@@ -1,11 +1,11 @@
 import { config } from "../../config/environment";
 import { CORS_HEADERS, buildSseResponse } from "../../shared/http";
-import { formatWorkspacePath } from "../../types/session";
 import { createPromptContext, type ContainerInfo } from "../prompts/context";
 import type { PromptService } from "../../types/prompt";
 import { findSessionById } from "../repositories/session.repository";
 import { getProjectSystemPrompt } from "../repositories/project.repository";
 import { getSessionContainersWithPorts } from "../repositories/container.repository";
+import { resolveWorkspacePathBySession } from "../workspace/resolve-path";
 import { publisher } from "../../clients/publisher";
 import { setLastMessage } from "../monitors/last-message-store";
 
@@ -55,16 +55,16 @@ async function buildProxyBody(
   request: Request,
   path: string,
   labSessionId: string | null,
+  workspacePath: string | null,
   promptService: PromptService,
 ): Promise<BodyInit | null> {
   const hasBody = ["POST", "PUT", "PATCH"].includes(request.method);
   if (!hasBody) return null;
 
   const isSessionCreate = isSessionCreateRequest(path, request.method);
-  if (labSessionId && isSessionCreate) {
+  if (labSessionId && isSessionCreate && workspacePath) {
     const originalBody = await request.json().catch(() => ({}));
-    const directory = formatWorkspacePath(labSessionId);
-    return JSON.stringify({ ...originalBody, directory });
+    return JSON.stringify({ ...originalBody, directory: workspacePath });
   }
 
   const isPromptEndpoint = shouldInjectSystemPrompt(path, request.method);
@@ -84,10 +84,10 @@ async function buildProxyBody(
     );
   }
 
-  const directory = formatWorkspacePath(labSessionId);
-
   const sessionData = await getSessionData(labSessionId);
-  if (!sessionData) return JSON.stringify({ ...originalBody, directory });
+  if (!sessionData) {
+    return JSON.stringify({ ...originalBody, directory: workspacePath });
+  }
 
   const containers = await getContainerInfos(labSessionId);
   const promptContext = createPromptContext({
@@ -98,12 +98,14 @@ async function buildProxyBody(
   });
 
   const { text: composedPrompt } = promptService.compose(promptContext);
-  if (!composedPrompt) return JSON.stringify({ ...originalBody, directory });
+  if (!composedPrompt) {
+    return JSON.stringify({ ...originalBody, directory: workspacePath });
+  }
 
   const existingSystem = originalBody.system ?? "";
   const combinedSystem = composedPrompt + (existingSystem ? "\n\n" + existingSystem : "");
 
-  return JSON.stringify({ ...originalBody, system: combinedSystem, directory });
+  return JSON.stringify({ ...originalBody, system: combinedSystem, directory: workspacePath });
 }
 
 function buildForwardHeaders(request: Request): Headers {
@@ -131,10 +133,10 @@ function isSseResponse(path: string, proxyResponse: Response): boolean {
   );
 }
 
-function buildTargetUrl(path: string, url: URL, labSessionId: string | null): string {
+function buildTargetUrl(path: string, url: URL, workspacePath: string | null): string {
   const targetParams = new URLSearchParams(url.search);
-  if (labSessionId) {
-    targetParams.set("directory", formatWorkspacePath(labSessionId));
+  if (workspacePath) {
+    targetParams.set("directory", workspacePath);
   }
   const queryString = targetParams.toString();
   return `${config.opencodeUrl}${path}${queryString ? `?${queryString}` : ""}`;
@@ -175,10 +177,11 @@ export function createOpenCodeProxyHandler(promptService: PromptService): OpenCo
   return async function handleOpenCodeProxy(request: Request, url: URL): Promise<Response> {
     const path = url.pathname.replace(/^\/opencode/, "");
     const labSessionId = request.headers.get("X-Lab-Session-Id");
-    const targetUrl = buildTargetUrl(path, url, labSessionId);
+    const workspacePath = labSessionId ? await resolveWorkspacePathBySession(labSessionId) : null;
+    const targetUrl = buildTargetUrl(path, url, workspacePath);
 
     const forwardHeaders = buildForwardHeaders(request);
-    const body = await buildProxyBody(request, path, labSessionId, promptService);
+    const body = await buildProxyBody(request, path, labSessionId, workspacePath, promptService);
 
     const upstreamAbort = new AbortController();
     request.signal.addEventListener("abort", () => upstreamAbort.abort(), { once: true });

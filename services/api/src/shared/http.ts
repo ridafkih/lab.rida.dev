@@ -13,6 +13,10 @@ export function withCors(response: Response): Response {
   return response;
 }
 
+export function badRequestResponse(message = "Bad request"): Response {
+  return new Response(message, { status: HTTP_STATUS.BAD_REQUEST });
+}
+
 export function notFoundResponse(message = "Not found"): Response {
   return new Response(message, { status: HTTP_STATUS.NOT_FOUND });
 }

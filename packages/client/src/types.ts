@@ -7,6 +7,7 @@ export interface ProjectContainer {
   id: string;
   image: string;
   hostname: string | null;
+  isWorkspace: boolean;
   ports: number[];
   dependencies: ContainerDependency[];
 }
