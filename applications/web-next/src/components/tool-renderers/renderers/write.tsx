@@ -1,6 +1,6 @@
 "use client";
 
-import { FilePath, ContentCode, ContentError, getString } from "../shared";
+import { ContentCode, ContentError, getString } from "../shared";
 import type { ToolRendererProps } from "../types";
 
 function WriteRenderer({ input, error }: ToolRendererProps) {
@@ -9,11 +9,6 @@ function WriteRenderer({ input, error }: ToolRendererProps) {
 
   return (
     <div className="flex flex-col">
-      {filePath && (
-        <div className="px-4 py-2 bg-bg-muted">
-          <FilePath path={filePath} changeType="created" />
-        </div>
-      )}
       {content && (
         <div className="w-0 min-w-full overflow-x-auto max-h-80 overflow-y-auto">
           <ContentCode content={content} filename={filePath} />

@@ -15,7 +15,7 @@ import type {
   RetryPart,
   CompactionPart,
 } from "@opencode-ai/sdk/client";
-import { Check, ChevronRight, Loader2 } from "lucide-react";
+import { Check, ChevronRight, Loader2, File, FilePlus, FileEdit } from "lucide-react";
 import { tv } from "tailwind-variants";
 import { Markdown } from "./markdown";
 import { cn } from "@/lib/cn";
@@ -186,14 +186,31 @@ function MessagePartTool({ part, children }: { part: ToolPart; children: ReactNo
   );
 }
 
+const fileToolIcons = {
+  edit: { icon: FileEdit, color: "text-yellow-500" },
+  write: { icon: FilePlus, color: "text-green-500" },
+  read: { icon: File, color: "text-text-muted" },
+} as const;
+
 function MessagePartToolStatus() {
   const { meta } = useTool();
   const status = meta.part.state.status;
+  const toolName = meta.part.tool;
+
+  const fileToolConfig = fileToolIcons[toolName as keyof typeof fileToolIcons];
 
   if (status === "running" || status === "pending") {
+    if (fileToolConfig) {
+      const Icon = fileToolConfig.icon;
+      return <Icon size={12} className={cn("shrink-0 animate-pulse", fileToolConfig.color)} />;
+    }
     return <Loader2 size={12} className={cn("shrink-0", toolStatus({ status: "running" }))} />;
   }
   if (status === "completed") {
+    if (fileToolConfig) {
+      const Icon = fileToolConfig.icon;
+      return <Icon size={12} className={cn("shrink-0", fileToolConfig.color)} />;
+    }
     return <Check size={12} className={cn("shrink-0", toolStatus({ status }))} />;
   }
   if (status === "error") {
