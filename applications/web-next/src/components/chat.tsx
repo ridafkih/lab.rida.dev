@@ -190,7 +190,7 @@ function ChatInput({ children }: { children?: ReactNode }) {
   const { state, actions } = useChat();
 
   return (
-    <div className="sticky bottom-0 p-4 bg-linear-to-t from-bg to-transparent pointer-events-none z-100">
+    <div className="sticky bottom-0 p-4 bg-linear-to-t from-bg to-transparent pointer-events-none z-10">
       <TextAreaGroup.Provider
         state={{ value: state.input }}
         actions={{

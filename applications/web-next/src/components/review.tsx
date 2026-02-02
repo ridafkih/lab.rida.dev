@@ -10,6 +10,7 @@ import {
   useEffect,
   type ReactNode,
   type RefObject,
+  type CSSProperties,
 } from "react";
 import { tv } from "tailwind-variants";
 import { MultiFileDiff, File as FileViewer } from "@pierre/diffs/react";
@@ -18,14 +19,19 @@ import { File, FilePlus, FileX, Folder, X, Check, ChevronRight, Loader2 } from "
 import { TextAreaGroup } from "./textarea-group";
 import { cn } from "@/lib/cn";
 
+interface DiffStyleProps extends CSSProperties {
+  "--diffs-font-size"?: string;
+}
+
 type FileChangeType = "modified" | "created" | "deleted";
-type FileStatus = "pending" | "dismissed";
+type ReviewStatus = "pending" | "dismissed";
+type FileStatus = "added" | "modified" | "deleted";
 
 type ReviewableFile = {
   path: string;
   originalContent: string;
   currentContent: string;
-  status: FileStatus;
+  status: ReviewStatus;
   changeType: FileChangeType;
 };
 
@@ -40,6 +46,20 @@ type FileNode = {
   type: "file" | "directory";
 };
 
+type PatchHunk = {
+  oldStart: number;
+  oldLines: number;
+  newStart: number;
+  newLines: number;
+  lines: string[];
+};
+
+type Patch = {
+  oldFileName: string;
+  newFileName: string;
+  hunks: PatchHunk[];
+};
+
 type BrowserState = {
   rootNodes: FileNode[];
   expandedPaths: Set<string>;
@@ -48,7 +68,9 @@ type BrowserState = {
   rootLoading: boolean;
   selectedPath: string | null;
   previewContent: string | null;
+  previewPatch: Patch | null;
   previewLoading: boolean;
+  fileStatuses: Map<string, FileStatus>;
 };
 
 type BrowserActions = {
@@ -149,7 +171,9 @@ function ReviewProvider({ children, files, onDismiss, onSubmitFeedback, browser 
     rootLoading: false,
     selectedPath: null,
     previewContent: null,
+    previewPatch: null,
     previewLoading: false,
+    fileStatuses: new Map(),
   };
 
   const defaultBrowserActions: BrowserActions = {
@@ -316,6 +340,8 @@ function ReviewDiff() {
     meta.prevSelectionRef.current?.filePath === file.path &&
     state.selection?.filePath !== file.path;
 
+  const diffStyle: DiffStyleProps = { "--diffs-font-size": "12px", minWidth: 0 };
+
   return (
     <MultiFileDiff
       oldFile={oldFile}
@@ -333,7 +359,7 @@ function ReviewDiff() {
         onLineSelected: (range) => actions.selectLines(file.path, range),
         unsafeCSS: DIFF_CSS,
       }}
-      style={{ "--diffs-font-size": "12px", minWidth: 0 } as React.CSSProperties}
+      style={diffStyle}
     />
   );
 }
@@ -491,9 +517,23 @@ function ReviewPreviewView({ children }: { children?: ReactNode }) {
   return <div className="contents">{children}</div>;
 }
 
+const statusBadge = tv({
+  base: "px-1.5 py-0.5 text-[10px] font-medium rounded",
+  variants: {
+    status: {
+      added: "bg-green-500/20 text-green-500",
+      modified: "bg-yellow-500/20 text-yellow-500",
+      deleted: "bg-red-500/20 text-red-500",
+    },
+  },
+});
+
 function ReviewPreviewHeader({ children }: { children?: ReactNode }) {
   const { state, actions } = useReview();
   const isVisible = state.view === "preview" && !!state.browser.selectedPath;
+  const fileStatus = state.browser.selectedPath
+    ? state.browser.fileStatuses.get(state.browser.selectedPath)
+    : undefined;
 
   return (
     <div
@@ -503,6 +543,7 @@ function ReviewPreviewHeader({ children }: { children?: ReactNode }) {
       <span className="flex-1 truncate text-xs text-text-muted ">
         {state.browser.selectedPath ?? "\u00A0"}
       </span>
+      {fileStatus && <span className={statusBadge({ status: fileStatus })}>{fileStatus}</span>}
       {children}
       <button
         type="button"
@@ -515,19 +556,97 @@ function ReviewPreviewHeader({ children }: { children?: ReactNode }) {
   );
 }
 
+function reconstructOldContent(newContent: string, patch: Patch): string {
+  const newLines = newContent.split("\n");
+  const oldLines: string[] = [];
+  let newLineIndex = 0;
+
+  for (const hunk of patch.hunks) {
+    while (newLineIndex < hunk.newStart - 1) {
+      oldLines.push(newLines[newLineIndex]);
+      newLineIndex++;
+    }
+
+    for (const line of hunk.lines) {
+      const prefix = line[0];
+      const content = line.slice(1);
+
+      if (prefix === "-") {
+        oldLines.push(content);
+      } else if (prefix === "+") {
+        newLineIndex++;
+      } else {
+        oldLines.push(newLines[newLineIndex]);
+        newLineIndex++;
+      }
+    }
+  }
+
+  while (newLineIndex < newLines.length) {
+    oldLines.push(newLines[newLineIndex]);
+    newLineIndex++;
+  }
+
+  return oldLines.join("\n");
+}
+
 function ReviewPreviewContent() {
   const { state, actions, meta } = useReview();
 
   if (!state.browser.selectedPath || !state.browser.previewContent) return null;
+
+  const shouldClearSelection =
+    meta.prevSelectionRef.current?.filePath === state.browser.selectedPath &&
+    state.selection?.filePath !== state.browser.selectedPath;
+
+  const patch = state.browser.previewPatch;
+  const hasChanges = patch && patch.hunks && patch.hunks.length > 0;
+
+  if (hasChanges) {
+    const oldContent = reconstructOldContent(state.browser.previewContent, patch);
+
+    const oldFile: FileContents = {
+      name: state.browser.selectedPath,
+      contents: oldContent,
+    };
+
+    const newFile: FileContents = {
+      name: state.browser.selectedPath,
+      contents: state.browser.previewContent,
+    };
+
+    const diffStyle: DiffStyleProps = { "--diffs-font-size": "12px", minWidth: 0 };
+
+    return (
+      <div className="col-start-1 row-start-2 overflow-auto min-w-0 min-h-0">
+        <MultiFileDiff
+          oldFile={oldFile}
+          newFile={newFile}
+          selectedLines={shouldClearSelection ? null : undefined}
+          options={{
+            theme: pierreThemes,
+            themeType: "system",
+            diffStyle: "split",
+            hunkSeparators: "line-info",
+            lineDiffType: "word-alt",
+            overflow: "scroll",
+            disableFileHeader: true,
+            enableLineSelection: true,
+            onLineSelected: (range) => actions.selectLines(state.browser.selectedPath!, range),
+            unsafeCSS: DIFF_CSS,
+          }}
+          style={diffStyle}
+        />
+      </div>
+    );
+  }
 
   const previewFile: FileContents = {
     name: state.browser.selectedPath,
     contents: state.browser.previewContent,
   };
 
-  const shouldClearSelection =
-    meta.prevSelectionRef.current?.filePath === state.browser.selectedPath &&
-    state.selection?.filePath !== state.browser.selectedPath;
+  const fileStyle: DiffStyleProps = { "--diffs-font-size": "12px", minWidth: 0 };
 
   return (
     <div className="col-start-1 row-start-2 overflow-auto min-w-0 min-h-0">
@@ -543,7 +662,7 @@ function ReviewPreviewContent() {
           onLineSelected: (range) => actions.selectLines(state.browser.selectedPath!, range),
           unsafeCSS: DIFF_CSS,
         }}
-        style={{ "--diffs-font-size": "12px", minWidth: 0 } as React.CSSProperties}
+        style={fileStyle}
       />
     </div>
   );
@@ -627,6 +746,12 @@ function ReviewBrowserTree() {
   );
 }
 
+const fileStatusColors = {
+  added: "text-green-500",
+  modified: "text-yellow-500",
+  deleted: "text-red-500",
+} as const;
+
 function TreeNodes({ nodes, depth }: { nodes: FileNode[]; depth: number }) {
   const { state, actions } = useReview();
 
@@ -638,6 +763,7 @@ function TreeNodes({ nodes, depth }: { nodes: FileNode[]; depth: number }) {
         const isSelected = state.browser.selectedPath === node.path;
         const children = state.browser.loadedContents.get(node.path) ?? [];
         const isDirectory = node.type === "directory";
+        const fileStatus = state.browser.fileStatuses.get(node.path);
 
         const handleClick = () => {
           if (isDirectory) {
@@ -647,6 +773,10 @@ function TreeNodes({ nodes, depth }: { nodes: FileNode[]; depth: number }) {
             actions.browser.selectFile(node.path);
           }
         };
+
+        const FileIcon =
+          fileStatus === "added" ? FilePlus : fileStatus === "deleted" ? FileX : File;
+        const fileIconColor = fileStatus ? fileStatusColors[fileStatus] : "text-text-muted";
 
         return (
           <div key={node.path}>
@@ -672,9 +802,16 @@ function TreeNodes({ nodes, depth }: { nodes: FileNode[]; depth: number }) {
               {isDirectory ? (
                 <Folder className="size-3 text-text-muted" />
               ) : (
-                <File className="size-3 text-text-muted" />
+                <FileIcon className={cn("size-3", fileIconColor)} />
               )}
-              <span className="flex-1 truncate text-xs">{node.name}</span>
+              <span
+                className={cn(
+                  "flex-1 truncate text-xs",
+                  fileStatus && fileStatusColors[fileStatus],
+                )}
+              >
+                {node.name}
+              </span>
             </button>
             {isDirectory && isExpanded && children.length > 0 && (
               <TreeNodes nodes={children} depth={depth + 1} />
@@ -718,7 +855,9 @@ export {
   type ReviewableFile,
   type LineSelection,
   type FileChangeType,
+  type FileStatus,
   type FileNode,
+  type Patch,
   type BrowserState,
   type BrowserActions,
 };

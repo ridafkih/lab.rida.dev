@@ -96,7 +96,7 @@ function SessionInfoPanel() {
   }
 
   return (
-    <div className="min-w-64 shrink-0">
+    <div className="min-w-64 shrink-0 bg-bg z-20">
       <SessionInfoView
         session={session}
         project={project}
@@ -118,7 +118,7 @@ export default function TabPage({ params }: TabPageProps) {
 
   return (
     <div className="flex h-full">
-      <div className="flex-1 min-w-0 border-r border-border">
+      <div className="flex-1 min-w-80 border-r border-border">
         <PageFrame position="relative">
           <SessionHeader />
           <SessionTabs />

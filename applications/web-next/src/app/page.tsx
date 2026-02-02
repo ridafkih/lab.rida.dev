@@ -6,8 +6,14 @@ import { Nav } from "@/components/nav";
 import { TextAreaGroup } from "@/components/textarea-group";
 import { Orchestration } from "@/components/orchestration";
 import { SessionList } from "@/components/session-list";
-import { navItems } from "@/placeholder/data";
+import { defaultSettingsTab } from "@/config/settings";
 import { useModelSelection } from "@/lib/hooks";
+
+const navItems = [
+  { label: "Home", href: "/" },
+  { label: "Editor", href: "/editor" },
+  { label: "Settings", href: defaultSettingsTab.href, match: "/settings" },
+];
 import { useOrchestrate } from "@/lib/use-orchestrate";
 
 function mapToIndicatorStatus(status: string): "thinking" | "delegating" | "starting" | null {
