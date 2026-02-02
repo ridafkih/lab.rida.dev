@@ -1,7 +1,7 @@
 "use client";
 
 import { createContext, use, type ReactNode, type RefObject } from "react";
-import { Send, ChevronDown } from "lucide-react";
+import { Send, Square, ChevronDown } from "lucide-react";
 import { IconButton } from "./icon-button";
 
 type TextAreaGroupState = {
@@ -11,10 +11,12 @@ type TextAreaGroupState = {
 type TextAreaGroupActions = {
   onChange: (value: string) => void;
   onSubmit: () => void;
+  onAbort?: () => void;
 };
 
 type TextAreaGroupMeta = {
   textareaRef?: RefObject<HTMLTextAreaElement | null>;
+  isSending?: boolean;
 };
 
 type TextAreaGroupContextValue = {
@@ -131,7 +133,15 @@ function TextAreaGroupModelSelector({ value, groups, onChange }: ModelSelectorPr
 }
 
 function TextAreaGroupSubmit() {
-  const { actions } = useTextAreaGroup();
+  const { actions, meta } = useTextAreaGroup();
+
+  if (meta.isSending) {
+    return (
+      <IconButton onClick={actions.onAbort} title="Stop generation" className="ml-auto">
+        <Square size={14} fill="currentColor" />
+      </IconButton>
+    );
+  }
 
   return (
     <IconButton onClick={actions.onSubmit} className="ml-auto">

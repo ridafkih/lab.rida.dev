@@ -21,12 +21,20 @@ interface SendMessageOptions {
   modelId?: string;
 }
 
+export type SessionStatus =
+  | { type: "idle" }
+  | { type: "busy" }
+  | { type: "retry"; attempt: number; message: string; next: number }
+  | { type: "error"; message?: string };
+
 interface UseAgentResult {
   isLoading: boolean;
   messages: MessageState[];
   error: Error | null;
   sendMessage: (options: SendMessageOptions) => Promise<void>;
+  abortSession: () => Promise<void>;
   isSending: boolean;
+  sessionStatus: SessionStatus;
 }
 
 export interface CachedSessionData {
@@ -154,6 +162,7 @@ export function useAgent(labSessionId: string): UseAgentResult {
   const [messages, setMessages] = useState<MessageState[]>([]);
   const [error, setError] = useState<Error | null>(null);
   const [isSending, setIsSending] = useState(false);
+  const [sessionStatus, setSessionStatus] = useState<SessionStatus>({ type: "idle" });
   const currentOpencodeSessionRef = useRef<string | null>(null);
   const sendingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -318,13 +327,27 @@ export function useAgent(labSessionId: string): UseAgentResult {
         handleMessagePartUpdated(event.properties.part);
       }
 
-      if (event.type === "session.idle" || event.type === "session.error") {
-        console.log("[useAgent] Session state change:", event.type);
+      if (event.type === "session.status") {
+        const status = event.properties.status as SessionStatus;
+        setSessionStatus(status);
+      }
+
+      if (event.type === "session.idle") {
         if (sendingTimeoutRef.current) {
           clearTimeout(sendingTimeoutRef.current);
           sendingTimeoutRef.current = null;
         }
         setIsSending(false);
+        setSessionStatus({ type: "idle" });
+      }
+
+      if (event.type === "session.error") {
+        if (sendingTimeoutRef.current) {
+          clearTimeout(sendingTimeoutRef.current);
+          sendingTimeoutRef.current = null;
+        }
+        setIsSending(false);
+        setSessionStatus({ type: "error" });
       }
     };
 
@@ -381,11 +404,25 @@ export function useAgent(labSessionId: string): UseAgentResult {
     [opencodeSessionId, opencodeClient],
   );
 
+  const abortSession = useCallback(async () => {
+    if (!currentOpencodeSessionRef.current || !opencodeClient) return;
+
+    try {
+      await opencodeClient.session.abort({
+        sessionID: currentOpencodeSessionRef.current,
+      });
+    } catch (error) {
+      console.error("[useAgent] Abort failed:", error);
+    }
+  }, [opencodeClient]);
+
   return {
     isLoading,
     messages,
     error,
     sendMessage,
+    abortSession,
     isSending,
+    sessionStatus,
   };
 }

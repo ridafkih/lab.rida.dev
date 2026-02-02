@@ -1,18 +1,22 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Chat, useChat } from "@/components/chat";
 import { TextAreaGroup } from "@/components/textarea-group";
 import { MessagePart } from "@/components/message-part";
 import { QuestionProvider } from "@/lib/question-context";
 import { useModelSelection } from "@/lib/hooks";
-import type { MessageState } from "@/lib/use-agent";
+import { useSessionStatus } from "@/lib/use-session-status";
+import { useSessionContext } from "@/app/editor/[sessionId]/layout";
+import type { MessageState, SessionStatus } from "@/lib/use-agent";
 
 type ChatTabContentProps = {
   messages: MessageState[];
   onQuestionReply: (callId: string, answers: string[][]) => Promise<void>;
   onQuestionReject: (callId: string) => Promise<void>;
   isQuestionSubmitting: boolean;
+  sessionStatus: SessionStatus;
+  onAbort: () => void;
 };
 
 export function ChatTabContent({
@@ -20,7 +24,13 @@ export function ChatTabContent({
   onQuestionReply,
   onQuestionReject,
   isQuestionSubmitting,
+  sessionStatus,
+  onAbort,
 }: ChatTabContentProps) {
+  const { session } = useSessionContext();
+  const status = useSessionStatus(session);
+  const isGenerating = status === "generating" || sessionStatus.type === "busy";
+  const [rateLimitMessage, setRateLimitMessage] = useState<string | null>(null);
   const { state, actions } = useChat();
   const { modelGroups, modelId, setModelId } = useModelSelection({
     syncTo: actions.setModelId,
@@ -39,6 +49,17 @@ export function ChatTabContent({
       isStreamingRef.current = false;
     }
   }, [isStreaming, lastMessage?.parts.length, actions]);
+
+  useEffect(() => {
+    if (sessionStatus.type === "retry") {
+      onAbort();
+      setRateLimitMessage("Rate limited. Try a different model.");
+    }
+  }, [sessionStatus, onAbort]);
+
+  useEffect(() => {
+    setRateLimitMessage(null);
+  }, [modelId]);
 
   return (
     <QuestionProvider
@@ -61,7 +82,7 @@ export function ChatTabContent({
             )),
           )}
         </Chat.Messages>
-        <Chat.Input>
+        <Chat.Input isSending={isGenerating} statusMessage={rateLimitMessage}>
           {modelGroups && modelId && (
             <TextAreaGroup.ModelSelector
               value={modelId}

@@ -30,6 +30,7 @@ type ChatActions = {
   setInput: (value: string) => void;
   setModelId: (value: string) => void;
   onSubmit: () => void;
+  onAbort: () => void;
   scrollToBottom: (force?: boolean) => void;
 };
 
@@ -56,10 +57,12 @@ function ChatProvider({
   children,
   defaultModelId,
   onSubmit,
+  onAbort,
 }: {
   children: ReactNode;
   defaultModelId?: string;
   onSubmit?: (options: SubmitOptions) => void;
+  onAbort?: () => void;
 }) {
   const [input, setInput] = useState("");
   const [modelId, setModelId] = useState(defaultModelId ?? null);
@@ -81,11 +84,21 @@ function ChatProvider({
     setTimeout(() => scrollToBottom(true), 0);
   };
 
+  const handleAbort = () => {
+    onAbort?.();
+  };
+
   return (
     <ChatContext
       value={{
         state: { input, modelId },
-        actions: { setInput, setModelId, onSubmit: handleSubmit, scrollToBottom },
+        actions: {
+          setInput,
+          setModelId,
+          onSubmit: handleSubmit,
+          onAbort: handleAbort,
+          scrollToBottom,
+        },
         scrollRef,
         isNearBottomRef,
       }}
@@ -186,17 +199,32 @@ function ChatBlock({ role, children }: { role: ChatRole; children: ReactNode }) 
   return <div className={block({ role })}>{children}</div>;
 }
 
-function ChatInput({ children }: { children?: ReactNode }) {
+function ChatInput({
+  children,
+  isSending,
+  statusMessage,
+}: {
+  children?: ReactNode;
+  isSending?: boolean;
+  statusMessage?: string | null;
+}) {
   const { state, actions } = useChat();
 
   return (
     <div className="sticky bottom-0 p-4 bg-linear-to-t from-bg to-transparent pointer-events-none z-10">
+      {statusMessage && (
+        <div className="mb-2 px-3 py-1.5 bg-amber-950 text-amber-500 border border-amber-900 text-xs pointer-events-auto">
+          {statusMessage}
+        </div>
+      )}
       <TextAreaGroup.Provider
         state={{ value: state.input }}
         actions={{
           onChange: actions.setInput,
           onSubmit: actions.onSubmit,
+          onAbort: actions.onAbort,
         }}
+        meta={{ isSending }}
       >
         <TextAreaGroup.Frame>
           <TextAreaGroup.Input placeholder="Send a message..." rows={2} />

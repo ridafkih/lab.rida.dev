@@ -12,6 +12,15 @@ import { setLastMessage } from "../monitors/last-message-store";
 const PROMPT_ENDPOINTS = ["/session/", "/prompt", "/message"];
 const QUESTION_ENDPOINTS = ["/question/"];
 
+async function safeJsonBody(request: Request): Promise<Record<string, unknown>> {
+  if (!request.body) return {};
+  try {
+    return await request.json();
+  } catch {
+    return {};
+  }
+}
+
 function shouldInjectSystemPrompt(path: string, method: string): boolean {
   return method === "POST" && PROMPT_ENDPOINTS.some((endpoint) => path.includes(endpoint));
 }
@@ -68,14 +77,14 @@ async function buildProxyBody(
 
   const isSessionCreate = isSessionCreateRequest(path, request.method);
   if (labSessionId && isSessionCreate && workspacePath) {
-    const originalBody = await request.json().catch(() => ({}));
+    const originalBody = await safeJsonBody(request);
     return JSON.stringify({ ...originalBody, directory: workspacePath });
   }
 
   // Handle question reply/reject - inject directory
   const isQuestion = isQuestionRequest(path, request.method);
   if (labSessionId && isQuestion && workspacePath) {
-    const originalBody = await request.json().catch(() => ({}));
+    const originalBody = await safeJsonBody(request);
     return JSON.stringify({ ...originalBody, directory: workspacePath });
   }
 
@@ -84,7 +93,7 @@ async function buildProxyBody(
     return request.body;
   }
 
-  const originalBody = await request.json();
+  const originalBody = await safeJsonBody(request);
 
   const userMessageText = extractUserMessageText(originalBody);
   if (userMessageText) {

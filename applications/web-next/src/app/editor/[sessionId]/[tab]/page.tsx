@@ -62,7 +62,7 @@ function TabContent({ tab }: { tab: TabValue }) {
     invalidateSessionCache(sessionId);
   }, [sessionId]);
 
-  const { messages, sendMessage } = useAgent(sessionId);
+  const { messages, sendMessage, abortSession, sessionStatus } = useAgent(sessionId);
   const {
     reply: replyToQuestion,
     reject: rejectQuestion,
@@ -72,12 +72,14 @@ function TabContent({ tab }: { tab: TabValue }) {
   switch (tab) {
     case "chat":
       return (
-        <Chat.Provider key={sessionId} onSubmit={sendMessage}>
+        <Chat.Provider key={sessionId} onSubmit={sendMessage} onAbort={abortSession}>
           <ChatTabContent
             messages={messages}
             onQuestionReply={replyToQuestion}
             onQuestionReject={rejectQuestion}
             isQuestionSubmitting={isQuestionSubmitting}
+            sessionStatus={sessionStatus}
+            onAbort={abortSession}
           />
         </Chat.Provider>
       );
