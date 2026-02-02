@@ -4,6 +4,28 @@ import type { ComponentPropsWithoutRef, ReactNode } from "react";
 import { Streamdown } from "streamdown";
 import { File } from "@pierre/diffs/react";
 import { cn } from "@/lib/cn";
+import { useTheme } from "@/lib/use-theme";
+
+const pierreThemes = { light: "pierre-light", dark: "pierre-dark" } as const;
+
+function CodeBlock({ content, language }: { content: string; language?: string }) {
+  const { resolvedTheme } = useTheme();
+
+  return (
+    <div className="w-0 min-w-full">
+      <File
+        file={{ name: language ? `file.${language}` : "file.txt", contents: content }}
+        options={{
+          theme: pierreThemes,
+          themeType: resolvedTheme === "dark" ? "dark" : "light",
+          overflow: "scroll",
+          disableFileHeader: true,
+        }}
+        style={{ "--diffs-font-size": "12px" } as React.CSSProperties}
+      />
+    </div>
+  );
+}
 
 const components = {
   p: ({ children, className, ...props }: ComponentPropsWithoutRef<"p">) => (
@@ -89,19 +111,7 @@ const components = {
     const langMatch = codeClassName.match(/language-(\w+)/);
     const lang = langMatch?.[1];
 
-    return (
-      <div className="w-0 min-w-full">
-        <File
-          file={{ name: lang ? `file.${lang}` : "file.txt", contents: codeContent }}
-          options={{
-            theme: "pierre-light",
-            overflow: "scroll",
-            disableFileHeader: true,
-          }}
-          style={{ "--diffs-font-size": "12px" } as React.CSSProperties}
-        />
-      </div>
-    );
+    return <CodeBlock content={codeContent} language={lang} />;
   },
 
   blockquote: ({ children, className, ...props }: ComponentPropsWithoutRef<"blockquote">) => (

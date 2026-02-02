@@ -17,6 +17,7 @@ import type { FileContents, SelectedLineRange } from "@pierre/diffs";
 import { File, FilePlus, FileX, Folder, X, Check, ChevronRight, Loader2 } from "lucide-react";
 import { TextAreaGroup } from "./textarea-group";
 import { cn } from "@/lib/cn";
+import { useTheme } from "@/lib/use-theme";
 
 type FileChangeType = "modified" | "created" | "deleted";
 type FileStatus = "pending" | "dismissed";
@@ -296,9 +297,12 @@ const DIFF_CSS = `
   }
 `;
 
+const pierreThemes = { light: "pierre-light", dark: "pierre-dark" } as const;
+
 function ReviewDiff() {
   const { state, actions, meta } = useReview();
   const { file } = useDiffItem();
+  const { resolvedTheme } = useTheme();
 
   const oldFile: FileContents = {
     name: file.path,
@@ -320,7 +324,8 @@ function ReviewDiff() {
       newFile={newFile}
       selectedLines={shouldClearSelection ? null : undefined}
       options={{
-        theme: "pierre-light",
+        theme: pierreThemes,
+        themeType: resolvedTheme === "dark" ? "dark" : "light",
         diffStyle: "split",
         hunkSeparators: "line-info",
         lineDiffType: "word-alt",
@@ -514,6 +519,8 @@ function ReviewPreviewHeader({ children }: { children?: ReactNode }) {
 
 function ReviewPreviewContent() {
   const { state, actions, meta } = useReview();
+  const { resolvedTheme } = useTheme();
+
   if (!state.browser.selectedPath || !state.browser.previewContent) return null;
 
   const previewFile: FileContents = {
@@ -531,7 +538,8 @@ function ReviewPreviewContent() {
         file={previewFile}
         selectedLines={shouldClearSelection ? null : undefined}
         options={{
-          theme: "pierre-light",
+          theme: pierreThemes,
+          themeType: resolvedTheme === "dark" ? "dark" : "light",
           overflow: "scroll",
           disableFileHeader: true,
           enableLineSelection: true,
