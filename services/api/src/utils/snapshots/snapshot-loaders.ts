@@ -3,11 +3,7 @@ import { isContainerStatus } from "../../types/container";
 import { getChangeType } from "../../types/file";
 import { formatProxyUrl } from "../../types/session";
 import { findProjectSummaries } from "../repositories/project.repository";
-import {
-  findAllSessionSummaries,
-  getSessionOpencodeId,
-  findSessionById,
-} from "../repositories/session.repository";
+import { findAllSessionSummaries, findSessionById } from "../repositories/session.repository";
 import {
   getSessionContainersWithDetails,
   findPortsByContainerId,
@@ -15,6 +11,7 @@ import {
 import { opencode } from "../../clients/opencode";
 import { getInferenceStatus } from "../monitors/inference-status-store";
 import { getLastMessage, setLastMessage } from "../monitors/last-message-store";
+import { resolveWorkspacePathBySession } from "../workspace/resolve-path";
 import type { BrowserService } from "../browser/browser-service";
 import type { AppSchema } from "@lab/multiplayer-sdk";
 
@@ -53,11 +50,15 @@ export async function loadSessionContainers(sessionId: string) {
 }
 
 export async function loadSessionChangedFiles(sessionId: string) {
-  const opencodeSessionId = await getSessionOpencodeId(sessionId);
-  if (!opencodeSessionId) return [];
+  const session = await findSessionById(sessionId);
+  if (!session?.opencodeSessionId) return [];
 
   try {
-    const response = await opencode.session.diff({ sessionID: opencodeSessionId });
+    const directory = await resolveWorkspacePathBySession(sessionId);
+    const response = await opencode.session.diff({
+      sessionID: session.opencodeSessionId,
+      directory,
+    });
     if (!response.data) return [];
 
     return response.data.map((diff) => ({
@@ -83,7 +84,11 @@ export async function loadSessionMetadata(sessionId: string) {
   }
 
   try {
-    const response = await opencode.session.messages({ sessionID: session.opencodeSessionId });
+    const directory = await resolveWorkspacePathBySession(sessionId);
+    const response = await opencode.session.messages({
+      sessionID: session.opencodeSessionId,
+      directory,
+    });
     const messages = response.data ?? [];
     const lastMessage = messages[messages.length - 1];
     const textPart = lastMessage?.parts?.find(

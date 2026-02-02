@@ -39,6 +39,10 @@ interface SessionIdleEvent {
   type: "session.idle";
 }
 
+interface SessionErrorEvent {
+  type: "session.error";
+}
+
 function hasProperty<T extends string>(obj: unknown, key: T): obj is Record<T, unknown> {
   return typeof obj === "object" && obj !== null && key in obj;
 }
@@ -80,6 +84,11 @@ function parseMessagePartUpdatedEvent(event: unknown): MessagePartUpdatedEvent |
 function parseSessionIdleEvent(event: unknown): SessionIdleEvent | null {
   if (!hasProperty(event, "type") || event.type !== "session.idle") return null;
   return { type: "session.idle" };
+}
+
+function parseSessionErrorEvent(event: unknown): SessionErrorEvent | null {
+  if (!hasProperty(event, "type") || event.type !== "session.error") return null;
+  return { type: "session.error" };
 }
 
 function toReviewableFile(diff: FileDiff) {
@@ -131,8 +140,8 @@ function processMessageUpdated(labSessionId: string, event: MessageUpdatedEvent)
 
 function processMessagePartUpdated(labSessionId: string, event: MessagePartUpdatedEvent): void {
   const part = event.properties.part;
-  setInferenceStatus(labSessionId, "generating");
   if (part.type === "text" && part.text) {
+    setInferenceStatus(labSessionId, "generating");
     setLastMessage(labSessionId, part.text);
     publisher.publishDelta(
       "sessionMetadata",
@@ -142,16 +151,15 @@ function processMessagePartUpdated(labSessionId: string, event: MessagePartUpdat
         inferenceStatus: "generating",
       },
     );
-  } else {
-    publisher.publishDelta(
-      "sessionMetadata",
-      { uuid: labSessionId },
-      { inferenceStatus: "generating" },
-    );
   }
 }
 
 function processSessionIdle(labSessionId: string): void {
+  setInferenceStatus(labSessionId, "idle");
+  publisher.publishDelta("sessionMetadata", { uuid: labSessionId }, { inferenceStatus: "idle" });
+}
+
+function processSessionError(labSessionId: string): void {
   setInferenceStatus(labSessionId, "idle");
   publisher.publishDelta("sessionMetadata", { uuid: labSessionId }, { inferenceStatus: "idle" });
 }
@@ -178,6 +186,12 @@ function processEvent(labSessionId: string, event: unknown): void {
   const idleEvent = parseSessionIdleEvent(event);
   if (idleEvent) {
     processSessionIdle(labSessionId);
+    return;
+  }
+
+  const errorEvent = parseSessionErrorEvent(event);
+  if (errorEvent) {
+    processSessionError(labSessionId);
   }
 }
 

@@ -26,11 +26,11 @@ export async function createSession(projectId: string, title?: string): Promise<
   return session;
 }
 
-export async function updateSessionOpencodeId(
+async function setOpencodeSessionIdIfUnset(
   sessionId: string,
   opencodeSessionId: string,
   workspaceDirectory?: string,
-): Promise<Session | null> {
+): Promise<void> {
   await db
     .update(sessions)
     .set({
@@ -39,6 +39,31 @@ export async function updateSessionOpencodeId(
       updatedAt: new Date(),
     })
     .where(and(eq(sessions.id, sessionId), isNull(sessions.opencodeSessionId)));
+}
+
+async function setWorkspaceDirectoryIfUnset(
+  sessionId: string,
+  workspaceDirectory: string,
+): Promise<void> {
+  await db
+    .update(sessions)
+    .set({
+      workspaceDirectory,
+      updatedAt: new Date(),
+    })
+    .where(and(eq(sessions.id, sessionId), isNull(sessions.workspaceDirectory)));
+}
+
+export async function updateSessionOpencodeId(
+  sessionId: string,
+  opencodeSessionId: string,
+  workspaceDirectory?: string,
+): Promise<Session | null> {
+  await setOpencodeSessionIdIfUnset(sessionId, opencodeSessionId, workspaceDirectory);
+
+  if (workspaceDirectory) {
+    await setWorkspaceDirectoryIfUnset(sessionId, workspaceDirectory);
+  }
 
   return findSessionById(sessionId);
 }
