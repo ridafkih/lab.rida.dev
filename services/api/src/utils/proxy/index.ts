@@ -1,6 +1,6 @@
 import { DockerClient } from "@lab/sandbox-docker";
 import { CaddyProxyManager } from "./manager";
-import { findRunningSessions } from "../repositories/session.repository";
+import { findActiveSessionsForReconciliation } from "../repositories/session.repository";
 import { getSessionContainersForReconciliation } from "../repositories/container.repository";
 import { formatNetworkName, formatUniqueHostname } from "../../types/session";
 
@@ -22,9 +22,9 @@ export const proxyManager = new CaddyProxyManager({
 let initialized = false;
 
 async function reconcileRoutes(): Promise<void> {
-  const runningSessions = await findRunningSessions();
+  const activeSessions = await findActiveSessionsForReconciliation();
 
-  for (const { id: sessionId } of runningSessions) {
+  for (const { id: sessionId } of activeSessions) {
     const containerData = await getSessionContainersForReconciliation(sessionId);
     if (containerData.length === 0) continue;
 
@@ -32,7 +32,11 @@ async function reconcileRoutes(): Promise<void> {
     const containerMap = new Map<string, { hostname: string; ports: Record<number, number> }>();
 
     for (const { containerId, dockerId, port } of containerData) {
-      // Verify Docker container is actually running
+      if (!dockerId) {
+        console.warn(`[Reconcile] Skipping container ${containerId} - no docker_id`);
+        continue;
+      }
+
       try {
         const info = await docker.inspectContainer(dockerId);
         if (info.state !== "running") continue;

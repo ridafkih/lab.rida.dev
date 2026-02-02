@@ -20,7 +20,11 @@ import {
   CircularDependencyError,
   type ContainerNode,
 } from "./dependency-resolver";
-import { deleteSession, findSessionById } from "../repositories/session.repository";
+import {
+  deleteSession,
+  findSessionById,
+  updateSessionStatus,
+} from "../repositories/session.repository";
 import { getGitHubCredentials } from "../repositories/github-settings.repository";
 import { proxyManager, isProxyInitialized, ensureProxyInitialized } from "../proxy";
 import { publisher } from "../../clients/publisher";
@@ -134,6 +138,7 @@ async function createAndStartContainer(
     { source: config.browserSocketVolume, target: VOLUMES.BROWSER_SOCKET_DIR },
   ];
 
+  console.log(`[Container] Creating ${containerDefinition.image} for session ${sessionId}`);
   const dockerId = await docker.createContainer({
     name: containerName,
     image: containerDefinition.image,
@@ -151,9 +156,12 @@ async function createAndStartContainer(
       [LABELS.CONTAINER]: containerDefinition.id,
     },
   });
+  console.log(`[Container] Created ${dockerId}, updating database...`);
 
   await updateSessionContainerDockerId(sessionId, containerDefinition.id, dockerId);
+  console.log(`[Container] Starting ${dockerId}...`);
   await docker.startContainer(dockerId);
+  console.log(`[Container] Started ${dockerId}`);
 
   const { portMap, networkAliases } = buildNetworkAliasesAndPortMap(
     sessionId,
@@ -306,6 +314,8 @@ async function handleInitializationError(
   dockerIds: string[],
   browserService: BrowserService,
 ): Promise<void> {
+  await updateSessionStatus(sessionId, "error");
+
   const errorContainers = await updateSessionContainersStatusBySessionId(sessionId, "error");
 
   for (const container of errorContainers) {

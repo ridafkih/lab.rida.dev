@@ -1,6 +1,6 @@
 import { db } from "@lab/database/client";
 import { sessions, type Session } from "@lab/database/schema/sessions";
-import { eq, ne, and, count, isNull } from "drizzle-orm";
+import { eq, ne, and, count, isNull, inArray } from "drizzle-orm";
 
 export async function findSessionById(sessionId: string): Promise<Session | null> {
   const [session] = await db.select().from(sessions).where(eq(sessions.id, sessionId));
@@ -93,6 +93,13 @@ export async function markSessionDeleting(sessionId: string): Promise<void> {
     .where(eq(sessions.id, sessionId));
 }
 
+export async function updateSessionStatus(sessionId: string, status: string): Promise<void> {
+  await db
+    .update(sessions)
+    .set({ status, updatedAt: new Date() })
+    .where(eq(sessions.id, sessionId));
+}
+
 export async function deleteSession(sessionId: string): Promise<void> {
   await db.delete(sessions).where(eq(sessions.id, sessionId));
 }
@@ -125,6 +132,13 @@ export async function getSessionOpencodeId(sessionId: string): Promise<string | 
 
 export async function findRunningSessions(): Promise<{ id: string }[]> {
   return db.select({ id: sessions.id }).from(sessions).where(eq(sessions.status, "running"));
+}
+
+export async function findActiveSessionsForReconciliation(): Promise<{ id: string }[]> {
+  return db
+    .select({ id: sessions.id })
+    .from(sessions)
+    .where(inArray(sessions.status, ["running", "pooled"]));
 }
 
 export async function claimPooledSession(projectId: string): Promise<Session | null> {
