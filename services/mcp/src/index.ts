@@ -4,13 +4,9 @@ import { DockerClient } from "@lab/sandbox-docker";
 import { config } from "./config/environment";
 import { makeRegisterTool } from "./tools/register";
 import { bash } from "./tools/bash";
-import { github } from "./tools/github";
-import { listProcesses } from "./tools/list-processes";
-import { getContainerLogs } from "./tools/get-container-logs";
-import { restartContainer } from "./tools/restart-container";
-import { getInternalUrl } from "./tools/get-internal-url";
-import { getExternalUrl } from "./tools/get-external-url";
 import { browser } from "./tools/browser";
+import { container } from "./tools/container";
+import { github } from "./tools/github";
 
 const docker = new DockerClient();
 
@@ -22,13 +18,9 @@ const server = new McpServer({
 const { registerTool } = makeRegisterTool(server, docker);
 
 registerTool(bash);
-registerTool(github);
-registerTool(listProcesses);
-registerTool(getContainerLogs);
-registerTool(restartContainer);
-registerTool(getInternalUrl);
-registerTool(getExternalUrl);
 registerTool(browser);
+registerTool(container);
+registerTool(github);
 
 const transport = new WebStandardStreamableHTTPServerTransport();
 
