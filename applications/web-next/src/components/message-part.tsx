@@ -356,7 +356,7 @@ const metaRow = tv({
   base: "flex items-center gap-3 px-4 py-1.5 text-xs text-text-muted",
 });
 
-function MessagePartStepStart({ }: { part: StepStartPart }) {
+function MessagePartStepStart({}: { part: StepStartPart }) {
   return null;
 }
 
