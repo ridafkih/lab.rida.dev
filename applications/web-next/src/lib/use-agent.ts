@@ -202,13 +202,6 @@ export function useAgent(labSessionId: string): UseAgentResult {
     };
 
     const processEvent = (event: Event) => {
-      if ((event.type as string) !== "server.heartbeat") {
-        console.log("[useAgent] Event received:", {
-          type: event.type,
-          properties: event.properties,
-        });
-      }
-
       const sessionSpecificEvents = [
         "message.updated",
         "message.part.updated",
@@ -219,25 +212,16 @@ export function useAgent(labSessionId: string): UseAgentResult {
 
       if (sessionSpecificEvents.includes(event.type)) {
         const eventSessionId = getSessionIdFromEvent(event);
-        console.log("[useAgent] Session ID check for", event.type, ":", {
-          eventSessionId,
-          currentSessionId: currentOpencodeSessionRef.current,
-          match: eventSessionId === currentOpencodeSessionRef.current,
-        });
-
         if (eventSessionId !== currentOpencodeSessionRef.current) {
-          console.log("[useAgent] Event filtered out due to session ID mismatch");
           return;
         }
       }
 
       if (event.type === "message.updated") {
-        console.log("[useAgent] Processing message.updated");
         handleMessageUpdated(event.properties.info);
       }
 
       if (event.type === "message.part.updated") {
-        console.log("[useAgent] Processing message.part.updated", event.properties.part);
         handleMessagePartUpdated(event.properties.part);
       }
 

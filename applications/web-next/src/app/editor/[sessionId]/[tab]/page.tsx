@@ -1,6 +1,6 @@
 "use client";
 
-import { use } from "react";
+import { Suspense, use } from "react";
 import { useRouter } from "next/navigation";
 import { Chat } from "@/components/chat";
 import { StatusIcon } from "@/components/status-icon";
@@ -11,6 +11,7 @@ import { ReviewTabContent } from "@/components/review-tab-content";
 import { FrameTabContent } from "@/components/frame-tab-content";
 import { StreamTabContent } from "@/components/stream-tab-content";
 import { SessionInfoView } from "@/components/session-info-view";
+import { ChatLoadingFallback } from "@/components/suspense-fallbacks";
 import { PageFrame, Header, PageContent } from "@/components/layout-primitives";
 import { useAgent } from "@/lib/use-agent";
 import { useQuestions } from "@/lib/use-questions";
@@ -131,7 +132,9 @@ export default function TabPage({ params }: TabPageProps) {
           <SessionHeader />
           <SessionTabs />
           <PageContent display="flex">
-            <TabContent tab={currentTab} />
+            <Suspense fallback={<ChatLoadingFallback />}>
+              <TabContent tab={currentTab} />
+            </Suspense>
           </PageContent>
         </PageFrame>
       </div>

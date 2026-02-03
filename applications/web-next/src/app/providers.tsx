@@ -6,6 +6,7 @@ import { MultiplayerProvider } from "@/lib/multiplayer";
 
 interface ProvidersProps {
   children: ReactNode;
+  fallback?: Record<string, unknown>;
 }
 
 export const MultiplayerEnabledContext = createContext(false);
@@ -14,12 +15,13 @@ export function useMultiplayerEnabled() {
   return use(MultiplayerEnabledContext);
 }
 
-export function Providers({ children }: ProvidersProps) {
+export function Providers({ children, fallback = {} }: ProvidersProps) {
   const wsUrl = process.env.NEXT_PUBLIC_WS_URL;
 
   const swrContent = (
     <SWRConfig
       value={{
+        fallback,
         dedupingInterval: 2000,
         revalidateOnFocus: false,
         shouldRetryOnError: true,

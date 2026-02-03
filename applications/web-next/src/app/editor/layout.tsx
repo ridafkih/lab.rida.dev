@@ -1,9 +1,10 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { Suspense, type ReactNode } from "react";
 import { useParams } from "next/navigation";
 import { Nav } from "@/components/nav";
 import { ProjectNavigatorView } from "@/components/project-navigator-view";
+import { ProjectsLoadingFallback } from "@/components/suspense-fallbacks";
 import { OpenCodeSessionProvider } from "@/lib/opencode-session";
 import { defaultSettingsTab } from "@/config/settings";
 
@@ -16,7 +17,9 @@ const navItems = [
 function Sidebar({ selectedSessionId }: { selectedSessionId: string | null }) {
   return (
     <aside className="relative flex grow flex-col min-w-0 w-full border-r border-border bg-bg">
-      <ProjectNavigatorView selectedSessionId={selectedSessionId} />
+      <Suspense fallback={<ProjectsLoadingFallback />}>
+        <ProjectNavigatorView selectedSessionId={selectedSessionId} />
+      </Suspense>
     </aside>
   );
 }
