@@ -7,6 +7,7 @@ import { bash } from "./tools/bash";
 import { github } from "./tools/github";
 import { listProcesses } from "./tools/list-processes";
 import { getContainerLogs } from "./tools/get-container-logs";
+import { restartContainer } from "./tools/restart-container";
 import { getInternalUrl } from "./tools/get-internal-url";
 import { getExternalUrl } from "./tools/get-external-url";
 
@@ -23,6 +24,7 @@ registerTool(bash);
 registerTool(github);
 registerTool(listProcesses);
 registerTool(getContainerLogs);
+registerTool(restartContainer);
 registerTool(getInternalUrl);
 registerTool(getExternalUrl);
 
