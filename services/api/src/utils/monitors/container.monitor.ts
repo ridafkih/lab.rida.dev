@@ -22,8 +22,6 @@ function mapEventToStatus(event: DockerContainerEvent): ContainerStatus | null {
     case "die":
     case "kill":
       return "stopped";
-    case "restart":
-      return "starting";
     case "oom":
       return "error";
     case "health_status":
