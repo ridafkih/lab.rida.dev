@@ -1,12 +1,11 @@
 "use client";
 
-import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { ProjectNavigator } from "@/components/project-navigator-list";
 import { SessionItem } from "@/components/session-item";
-import { useProjects, useSessions, useCreateSession, useSessionCreation } from "@/lib/hooks";
+import { useProjects, useSessions, useCreateSession } from "@/lib/hooks";
 import { useSessionsSync } from "@/lib/use-sessions-sync";
-import type { Project, Session } from "@lab/client";
+import type { Project } from "@lab/client";
 
 function SidebarSessionItem({ isSelected }: { isSelected: boolean }) {
   const { prefetch } = SessionItem.useContext();
@@ -36,32 +35,12 @@ function ProjectSessionsList({ project, selectedSessionId }: ProjectSessionsList
   const router = useRouter();
   const { data: sessions } = useSessions(project.id);
   const createSession = useCreateSession();
-  const [creationState, setCreationState] = useSessionCreation();
 
   const sessionCount = sessions?.length ?? 0;
-  const isCreatingHere = creationState.isCreating && creationState.projectId === project.id;
-  const showSkeleton = isCreatingHere && sessionCount === creationState.sessionCountAtCreation;
 
-  useEffect(() => {
-    if (!isCreatingHere || !sessions) return;
-    if (sessionCount > creationState.sessionCountAtCreation) {
-      const newSession = sessions[sessions.length - 1];
-      if (newSession) {
-        router.push(`/editor/${newSession.id}/chat`);
-        setCreationState({ isCreating: false, projectId: null, sessionCountAtCreation: 0 });
-      }
-    }
-  }, [
-    isCreatingHere,
-    sessions,
-    sessionCount,
-    creationState.sessionCountAtCreation,
-    router,
-    setCreationState,
-  ]);
-
-  const handleAddSession = () => {
-    createSession(project.id, { currentSessionCount: sessionCount });
+  const handleAddSession = async () => {
+    const session = await createSession(project.id);
+    if (session) router.push(`/editor/${session.id}/chat`);
   };
 
   return (
@@ -75,12 +54,6 @@ function ProjectSessionsList({ project, selectedSessionId }: ProjectSessionsList
           <SidebarSessionItem isSelected={selectedSessionId === session.id} />
         </SessionItem.Provider>
       ))}
-      {showSkeleton && (
-        <ProjectNavigator.ItemSkeleton>
-          <ProjectNavigator.ItemSkeletonBlock />
-          <ProjectNavigator.ItemTitle empty>Unnamed Session</ProjectNavigator.ItemTitle>
-        </ProjectNavigator.ItemSkeleton>
-      )}
     </ProjectNavigator.List>
   );
 }

@@ -5,6 +5,7 @@ import type { ContainerStatus } from "../../types/container";
 import {
   findSessionContainerByDockerId,
   findSessionContainerDetailsByDockerId,
+  findAllActiveSessionContainers,
   updateSessionContainerStatus,
 } from "../repositories/container.repository";
 import { publisher } from "../../clients/publisher";
@@ -48,7 +49,30 @@ class ContainerMonitor {
 
   async start(): Promise<void> {
     console.log("[Container Monitor] Starting...");
+    await this.syncContainerStatuses();
     this.runMonitorLoop();
+  }
+
+  private async syncContainerStatuses(): Promise<void> {
+    try {
+      const activeContainers = await findAllActiveSessionContainers();
+
+      for (const container of activeContainers) {
+        const isRunning = await docker.containerExists(container.dockerId);
+        const actualStatus: ContainerStatus = isRunning ? "running" : "stopped";
+
+        if (actualStatus !== container.status) {
+          await updateSessionContainerStatus(container.id, actualStatus);
+          publisher.publishDelta(
+            "sessionContainers",
+            { uuid: container.sessionId },
+            { type: "update", container: { id: container.id, status: actualStatus } },
+          );
+        }
+      }
+    } catch (error) {
+      console.error("[Container Monitor] Failed to sync container statuses:", error);
+    }
   }
 
   stop(): void {

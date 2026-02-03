@@ -98,29 +98,24 @@ async function handleScreenshotResult(
   if (!result.success) {
     return {
       isError: true,
-      content: [
-        {
-          type: "text",
-          text: `Error: ${result.error || "Failed to capture screenshot"}`,
-        },
-      ],
+      content: [{ type: "text", text: `Error: ${result.error || "Failed to capture screenshot"}` }],
     };
   }
 
-  const data = result.data as { base64?: string } | undefined;
-  if (!data?.base64) {
+  const data = result.data;
+  const base64 =
+    typeof data === "object" && data !== null && "base64" in data && typeof data.base64 === "string"
+      ? data.base64
+      : null;
+
+  if (!base64) {
     return {
       isError: true,
-      content: [
-        {
-          type: "text",
-          text: "Error: Screenshot data not returned",
-        },
-      ],
+      content: [{ type: "text", text: "Error: Screenshot data not returned" }],
     };
   }
 
-  const buffer = Buffer.from(data.base64, "base64");
+  const buffer = Buffer.from(base64, "base64");
   const timestamp = Date.now();
   const filename = `${sessionId}/${timestamp}.png`;
 
@@ -128,27 +123,15 @@ async function handleScreenshotResult(
     const url = await uploadToRustFS(buffer, filename);
     return {
       content: [
-        {
-          type: "image",
-          data: data.base64,
-          mimeType: "image/png",
-        },
-        {
-          type: "text",
-          text: `Screenshot captured successfully and available at ${url}`,
-        },
+        { type: "image", data: base64, mimeType: "image/png" },
+        { type: "text", text: `Screenshot captured successfully and available at ${url}` },
       ],
     };
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     return {
       isError: true,
-      content: [
-        {
-          type: "text",
-          text: `Error: Failed to upload screenshot: ${message}`,
-        },
-      ],
+      content: [{ type: "text", text: `Error: Failed to upload screenshot: ${message}` }],
     };
   }
 }

@@ -104,7 +104,7 @@ function extractImagesFromClipboard(clipboardData: DataTransfer): File[] {
 
 function TextAreaGroupInput({
   placeholder = "Describe a task to provide context to the orchestrator...",
-  rows = 3,
+  rows = 5,
 }: InputProps) {
   const { actions, meta } = useTextAreaGroup();
 

@@ -130,7 +130,7 @@ function FormInputTextarea({
   rows = 3,
   ...props
 }: TextareaHTMLAttributes<HTMLTextAreaElement> & { rows?: number }) {
-  return <textarea rows={rows} className={cn(input(), "resize-none", className)} {...props} />;
+  return <textarea rows={3} className={cn(input(), "resize-none", className)} {...props} />;
 }
 
 function FormInputHelper({ children }: { children: ReactNode }) {

@@ -81,6 +81,25 @@ export async function findAllRunningSessionContainers(): Promise<
   }));
 }
 
+export async function findAllActiveSessionContainers(): Promise<
+  {
+    id: string;
+    sessionId: string;
+    dockerId: string;
+    status: string;
+  }[]
+> {
+  return db
+    .select({
+      id: sessionContainers.id,
+      sessionId: sessionContainers.sessionId,
+      dockerId: sessionContainers.dockerId,
+      status: sessionContainers.status,
+    })
+    .from(sessionContainers)
+    .where(inArray(sessionContainers.status, ["running", "starting"]));
+}
+
 export async function findSessionContainerByDockerId(
   dockerId: string,
 ): Promise<{ id: string } | null> {
@@ -212,7 +231,6 @@ export async function getSessionContainersWithDetails(sessionId: string): Promis
 export interface SessionService {
   containerId: string;
   dockerId: string;
-  hostname: string | null;
   image: string;
   status: string;
   ports: number[];
@@ -253,7 +271,6 @@ export async function getSessionServices(sessionId: string): Promise<SessionServ
   return containerRows.map((row) => ({
     containerId: row.containerId,
     dockerId: row.dockerId,
-    hostname: row.hostname,
     image: row.image,
     status: row.status,
     ports: portsByContainerId.get(row.containerId) ?? [],

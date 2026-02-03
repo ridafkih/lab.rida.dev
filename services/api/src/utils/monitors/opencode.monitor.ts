@@ -1,7 +1,7 @@
 import { opencode } from "../../clients/opencode";
 import { TIMING } from "../../config/constants";
 import { getChangeType } from "../../types/file";
-import { findRunningSessions } from "../repositories/session.repository";
+import { findRunningSessions, findSessionById } from "../repositories/session.repository";
 import { resolveWorkspacePathBySession } from "../workspace/resolve-path";
 import { publisher } from "../../clients/publisher";
 import { setInferenceStatus, clearInferenceStatus } from "./inference-status-store";
@@ -212,10 +212,33 @@ class SessionTracker {
     return !this.abortController.signal.aborted;
   }
 
+  private async syncInitialStatus(directory: string): Promise<void> {
+    try {
+      const session = await findSessionById(this.labSessionId);
+      if (!session?.opencodeSessionId) return;
+
+      const result = await opencode.session.status({ directory });
+      if (!result.data) return;
+
+      const status = result.data[session.opencodeSessionId];
+      const inferenceStatus = status?.type === "busy" ? "generating" : "idle";
+
+      setInferenceStatus(this.labSessionId, inferenceStatus);
+      publisher.publishDelta("sessionMetadata", { uuid: this.labSessionId }, { inferenceStatus });
+    } catch (error) {
+      console.error(
+        `[OpenCode Monitor] Failed to sync initial status for ${this.labSessionId}:`,
+        error,
+      );
+    }
+  }
+
   private async monitor(): Promise<void> {
     const directory = await resolveWorkspacePathBySession(this.labSessionId);
 
     while (this.isActive) {
+      await this.syncInitialStatus(directory);
+
       try {
         const { stream } = await opencode.event.subscribe(
           { directory },

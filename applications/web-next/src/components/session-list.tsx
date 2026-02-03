@@ -1,14 +1,12 @@
 "use client";
 
-import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Box, Plus } from "lucide-react";
 import type { ReactNode } from "react";
 import type { Project, Session } from "@lab/client";
 import { tv } from "tailwind-variants";
-import { useProjects, useSessions, useCreateSession, useSessionCreation } from "@/lib/hooks";
+import { useProjects, useSessions, useCreateSession } from "@/lib/hooks";
 import { useSessionsSync } from "@/lib/use-sessions-sync";
-import { StatusIcon } from "./status-icon";
 import { IconButton } from "./icon-button";
 import { SessionItem } from "./session-item";
 
@@ -30,33 +28,13 @@ function SessionListProject({ project, children }: { project: Project; children?
   const router = useRouter();
   const { data: sessions } = useSessions(project.id);
   const createSession = useCreateSession();
-  const [creationState, setCreationState] = useSessionCreation();
 
   const sessionCount = sessions?.length ?? 0;
-  const isCreatingHere = creationState.isCreating && creationState.projectId === project.id;
-  const showSkeleton = isCreatingHere && sessionCount === creationState.sessionCountAtCreation;
 
-  useEffect(() => {
-    if (!isCreatingHere || !sessions) return;
-    if (sessionCount <= creationState.sessionCountAtCreation) return;
-
-    const newSession = sessions[sessions.length - 1];
-    if (!newSession) return;
-
-    router.push(`/editor/${newSession.id}/chat`);
-    setCreationState({ isCreating: false, projectId: null, sessionCountAtCreation: 0 });
-  }, [
-    isCreatingHere,
-    sessions,
-    sessionCount,
-    creationState.sessionCountAtCreation,
-    router,
-    setCreationState,
-  ]);
-
-  const handleAddSession = (event: React.MouseEvent) => {
+  const handleAddSession = async (event: React.MouseEvent) => {
     event.stopPropagation();
-    createSession(project.id, { currentSessionCount: sessionCount });
+    const session = await createSession(project.id);
+    if (session) router.push(`/editor/${session.id}/chat`);
   };
 
   return (
@@ -73,12 +51,6 @@ function SessionListProject({ project, children }: { project: Project; children?
         </IconButton>
       </div>
       {children}
-      {showSkeleton && (
-        <div className={row({ type: "session" })}>
-          <StatusIcon status="starting" />
-          <span className="text-text-muted italic">Spawning Session...</span>
-        </div>
-      )}
     </div>
   );
 }

@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import useSWR, { useSWRConfig } from "swr";
-import { atom, useAtom } from "jotai";
 import { atomWithStorage } from "jotai/utils";
+import { useAtom } from "jotai";
 import { api } from "./api";
 import type { Session } from "@lab/client";
 
@@ -42,22 +42,6 @@ export function useModelSelection(options?: UseModelSelectionOptions) {
   };
 
   return { modelGroups, modelId, setModelId, isLoading };
-}
-
-interface CreationState {
-  isCreating: boolean;
-  projectId: string | null;
-  sessionCountAtCreation: number;
-}
-
-const creationStateAtom = atom<CreationState>({
-  isCreating: false,
-  projectId: null,
-  sessionCountAtCreation: 0,
-});
-
-export function useSessionCreation() {
-  return useAtom(creationStateAtom);
 }
 
 export function useProjects() {
@@ -120,23 +104,49 @@ export function useSession(sessionId: string | null) {
 interface CreateSessionOptions {
   title?: string;
   initialMessage?: string;
-  currentSessionCount: number;
 }
 
 export function useCreateSession() {
-  const [, setCreationState] = useAtom(creationStateAtom);
+  const { mutate } = useSWRConfig();
 
-  return async (projectId: string, options: CreateSessionOptions): Promise<Session | null> => {
-    const { title, initialMessage, currentSessionCount } = options;
+  return async (projectId: string, options: CreateSessionOptions = {}): Promise<Session | null> => {
+    const { title, initialMessage } = options;
+    const optimisticId = `optimistic-${Date.now()}`;
+    const now = new Date().toISOString();
 
-    setCreationState({ isCreating: true, projectId, sessionCountAtCreation: currentSessionCount });
+    const optimisticSession: Session = {
+      id: optimisticId,
+      projectId,
+      title: title ?? null,
+      opencodeSessionId: null,
+      status: "creating",
+      createdAt: now,
+      updatedAt: now,
+    };
+
+    const sessionsKey = `sessions-${projectId}`;
+
+    mutate(sessionsKey, (current: Session[] = []) => [...current, optimisticSession], false);
 
     try {
       const session = await api.sessions.create(projectId, { title, initialMessage });
-      setCreationState({ isCreating: false, projectId: null, sessionCountAtCreation: 0 });
+
+      mutate(
+        sessionsKey,
+        (current: Session[] = []) =>
+          current.map((existing) => (existing.id === optimisticId ? session : existing)),
+        false,
+      );
+
+      mutate(`session-${session.id}`, session, false);
+
       return session;
     } catch {
-      setCreationState({ isCreating: false, projectId: null, sessionCountAtCreation: 0 });
+      mutate(
+        sessionsKey,
+        (current: Session[] = []) => current.filter((existing) => existing.id !== optimisticId),
+        false,
+      );
       return null;
     }
   };

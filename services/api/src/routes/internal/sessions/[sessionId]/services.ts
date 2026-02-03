@@ -19,7 +19,6 @@ const GET: RouteHandler = async (_request, params) => {
     services: services.map((service) => ({
       containerId: service.containerId,
       dockerId: service.dockerId,
-      hostname: service.hostname,
       image: service.image,
       status: service.status,
       ports: service.ports,

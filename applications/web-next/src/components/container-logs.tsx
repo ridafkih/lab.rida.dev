@@ -15,7 +15,7 @@ import { useContainerLogs, type LogSource, type LogEntry } from "@/lib/use-conta
 import { cn } from "@/lib/cn";
 
 const text = tv({
-  base: "text-xs",
+  base: "text-[10px]",
   variants: {
     color: {
       default: "text-text",
@@ -196,17 +196,8 @@ function ContainerLogsContent({ className }: { className?: string }) {
 }
 
 function ContainerLogsLine({ entry }: { entry: LogEntry }) {
-  const time = new Date(entry.timestamp);
-  const timeString = time.toLocaleTimeString("en-US", {
-    hour12: false,
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-  });
-
   return (
-    <div className={cn("flex gap-2 py-px", text({ font: "mono" }))}>
-      <span className={cn(text({ color: "muted" }), "shrink-0")}>{timeString}</span>
+    <div className={cn("py-px", text({ font: "mono" }))}>
       <span
         className={cn(
           "whitespace-nowrap",
