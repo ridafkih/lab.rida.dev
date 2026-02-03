@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef } from "react";
 import { CenteredLayout } from "@/components/centered-layout";
 import { Nav } from "@/components/nav";
 import { TextAreaGroup } from "@/components/textarea-group";
@@ -24,18 +24,22 @@ function mapToIndicatorStatus(status: string): "thinking" | "delegating" | "star
 }
 
 function OrchestratorPrompt() {
-  const [prompt, setPrompt] = useState("");
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
   const { modelGroups, modelId, setModelId } = useModelSelection();
   const { submit, state } = useOrchestrate();
-
-  const handleSubmit = async () => {
-    if (!prompt.trim()) return;
-    const content = prompt.trim();
-    setPrompt("");
-    await submit(content, { modelId: modelId ?? undefined });
-  };
-
   const indicatorStatus = mapToIndicatorStatus(state.status);
+
+  const handleSubmit = () => {
+    const { current: textarea } = textareaRef;
+    if (!textarea) return;
+
+    const { value } = textarea;
+    if (!value) return;
+    submit(value)
+
+    textarea.value = "";
+  }
 
   return (
     <div className="w-full">
@@ -48,11 +52,9 @@ function OrchestratorPrompt() {
         </div>
       )}
       <TextAreaGroup.Provider
-        state={{ value: prompt }}
-        actions={{
-          onChange: setPrompt,
-          onSubmit: handleSubmit,
-        }}
+        state={{ attachments: [] }}
+        actions={{ onSubmit: handleSubmit }}
+        meta={{ textareaRef }}
       >
         <TextAreaGroup.Frame>
           <TextAreaGroup.Input />
