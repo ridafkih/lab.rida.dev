@@ -25,6 +25,9 @@ export function validateState(state: string): boolean {
   if (parts.length !== 3) return false;
 
   const [nonce, timestamp, signature] = parts;
+
+  if (!nonce || !timestamp || !signature) return false;
+
   const payload = `${nonce}.${timestamp}`;
   const expectedSignature = createHmac("sha256", getSigningKey()).update(payload).digest("hex");
 

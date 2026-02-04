@@ -53,6 +53,7 @@ const POST: RouteHandler = async (request, _params, context) => {
       platformOrigin: body.platformOrigin,
       platformChatId: body.platformChatId,
       browserService: context.browserService,
+      daemonController: context.daemonController,
       modelId: body.modelId,
       timestamp: body.timestamp,
     });

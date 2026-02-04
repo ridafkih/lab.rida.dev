@@ -7,6 +7,7 @@ import { bootstrapBrowserService, shutdownBrowserService } from "../utils/browse
 import { initializeSessionContainers } from "../utils/docker/containers";
 import { setPoolBrowserService, initializePool } from "../utils/pool";
 import { ensureProxyInitialized } from "../utils/proxy";
+import { reconcileNetworkConnections } from "../utils/docker/network";
 import { isHttpMethod, isRouteModule, type RouteContext } from "../utils/handlers/route-handler";
 import { publisher } from "./publisher";
 import { join } from "node:path";
@@ -53,12 +54,13 @@ const browserConfig = {
 };
 
 const bootstrap = async () => {
-  const browserService = await bootstrapBrowserService(browserConfig);
+  const { browserService, daemonController } = await bootstrapBrowserService(browserConfig);
   const promptService = createDefaultPromptService();
   const handleOpenCodeProxy = createOpenCodeProxyHandler(promptService);
 
   const routeContext: RouteContext = {
     browserService,
+    daemonController,
     initializeSessionContainers: (sessionId: string, projectId: string) =>
       initializeSessionContainers(sessionId, projectId, browserService),
     promptService,
@@ -125,6 +127,10 @@ const bootstrap = async () => {
 
   ensureProxyInitialized().catch((error) =>
     console.error("[Startup] Failed to initialize proxy:", error),
+  );
+
+  reconcileNetworkConnections().catch((error) =>
+    console.error("[Startup] Failed to reconcile network connections:", error),
   );
 
   return { server, browserService };

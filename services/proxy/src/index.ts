@@ -26,14 +26,14 @@ function formatNetworkName(sessionId: string): string {
   return `lab-${sessionId}`;
 }
 
-async function ensureConnectedToNetwork(networkName: string): Promise<void> {
+async function ensureConnectedToNetwork(networkName: string): Promise<boolean> {
   if (networkConnectionCache.has(networkName)) {
-    return;
+    return false;
   }
 
   if (!PROXY_CONTAINER_NAME) {
     console.warn("[Proxy] PROXY_CONTAINER_NAME not set, skipping network connection");
-    return;
+    return false;
   }
 
   try {
@@ -41,10 +41,14 @@ async function ensureConnectedToNetwork(networkName: string): Promise<void> {
     if (!isConnected) {
       await docker.connectToNetwork(PROXY_CONTAINER_NAME, networkName);
       console.log(`[Proxy] Connected to network ${networkName}`);
+      networkConnectionCache.add(networkName);
+      return true;
     }
     networkConnectionCache.add(networkName);
+    return false;
   } catch (error) {
     console.warn(`[Proxy] Failed to connect to network ${networkName}:`, error);
+    return false;
   }
 }
 
@@ -98,14 +102,18 @@ function parseSubdomain(host: string): { sessionId: string; port: number } | nul
   return { sessionId, port };
 }
 
-async function proxyRequest(request: Request, upstream: UpstreamInfo): Promise<Response> {
+async function proxyRequest(
+  request: Request,
+  upstream: UpstreamInfo,
+  retries = 0,
+): Promise<Response> {
   const url = new URL(request.url);
   const targetUrl = `http://${upstream.hostname}:${upstream.port}${url.pathname}${url.search}`;
 
   const headers = new Headers(request.headers);
   headers.delete("host");
 
-  const proxyRequest = new Request(targetUrl, {
+  const proxyReq = new Request(targetUrl, {
     method: request.method,
     headers,
     body: request.body,
@@ -113,13 +121,17 @@ async function proxyRequest(request: Request, upstream: UpstreamInfo): Promise<R
   });
 
   try {
-    const response = await fetch(proxyRequest);
+    const response = await fetch(proxyReq);
     return new Response(response.body, {
       status: response.status,
       statusText: response.statusText,
       headers: response.headers,
     });
   } catch (error) {
+    if (retries > 0) {
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      return proxyRequest(request, upstream, retries - 1);
+    }
     console.error(`[Proxy] Upstream error for ${targetUrl}:`, error);
     return new Response("Bad Gateway", { status: 502 });
   }
@@ -172,7 +184,11 @@ async function handleRequest(
     return new Response("Not Found: Session or port not available", { status: 404 });
   }
 
-  await ensureConnectedToNetwork(upstream.networkName);
+  const justConnected = await ensureConnectedToNetwork(upstream.networkName);
+
+  if (justConnected) {
+    await new Promise((resolve) => setTimeout(resolve, 150));
+  }
 
   const upgradeHeader = request.headers.get("upgrade");
   if (upgradeHeader?.toLowerCase() === "websocket") {
@@ -191,7 +207,7 @@ async function handleRequest(
     return new Response("WebSocket upgrade failed", { status: 500 });
   }
 
-  const response = await proxyRequest(request, upstream);
+  const response = await proxyRequest(request, upstream, justConnected ? 3 : 0);
 
   const headers = new Headers(response.headers);
   for (const [key, value] of Object.entries(corsHeaders())) {

@@ -4,8 +4,8 @@ import { getChangeType } from "../../types/file";
 import { findRunningSessions, findSessionById } from "../repositories/session.repository";
 import { resolveWorkspacePathBySession } from "../workspace/resolve-path";
 import { publisher } from "../../clients/publisher";
-import { setInferenceStatus, clearInferenceStatus } from "./inference-status-store";
-import { setLastMessage, clearLastMessage } from "./last-message-store";
+import { setInferenceStatus, clearInferenceStatus } from "../stores/inference-status-store";
+import { setLastMessage, clearLastMessage } from "../stores/last-message-store";
 
 const COMPLETION_DEBOUNCE_MS = 5000;
 

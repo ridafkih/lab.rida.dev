@@ -11,9 +11,11 @@ import {
   createCreateSessionTool,
   createSendMessageToSessionTool,
   createGetSessionScreenshotTool,
+  createRunBrowserTaskTool,
 } from "./tools";
 import { buildChatOrchestratorPrompt } from "./prompts/chat-orchestrator";
 import type { BrowserService } from "../browser/browser-service";
+import type { DaemonController } from "@lab/browser-protocol";
 
 export interface ChatOrchestratorInput {
   content: string;
@@ -21,6 +23,7 @@ export interface ChatOrchestratorInput {
   platformOrigin?: string;
   platformChatId?: string;
   browserService: BrowserService;
+  daemonController: DaemonController;
   modelId?: string;
   timestamp?: string;
 }
@@ -133,6 +136,30 @@ function isScreenshotOutput(
   );
 }
 
+interface BrowserTaskOutput {
+  success: boolean;
+  hasScreenshot: true;
+  screenshot: ScreenshotData;
+}
+
+function isBrowserTaskOutput(value: unknown): value is BrowserTaskOutput {
+  if (typeof value !== "object" || value === null) return false;
+  if (!("success" in value)) return false;
+  if (!("hasScreenshot" in value) || value.hasScreenshot !== true) return false;
+  if (!("screenshot" in value)) return false;
+
+  const screenshot = value.screenshot;
+  if (typeof screenshot !== "object" || screenshot === null) return false;
+  return (
+    "data" in screenshot &&
+    typeof screenshot.data === "string" &&
+    "encoding" in screenshot &&
+    screenshot.encoding === "base64" &&
+    "format" in screenshot &&
+    typeof screenshot.format === "string"
+  );
+}
+
 function extractSessionInfoFromSteps<T extends { toolResults?: Array<{ output: unknown }> }>(
   steps: T[],
 ): SessionInfo {
@@ -157,6 +184,15 @@ function extractSessionInfoFromSteps<T extends { toolResults?: Array<{ output: u
       }
 
       if (isScreenshotOutput(toolResult.output)) {
+        attachments.push({
+          type: "image",
+          data: toolResult.output.screenshot.data,
+          encoding: toolResult.output.screenshot.encoding,
+          format: toolResult.output.screenshot.format,
+        });
+      }
+
+      if (isBrowserTaskOutput(toolResult.output)) {
         attachments.push({
           type: "image",
           data: toolResult.output.screenshot.data,
@@ -189,6 +225,11 @@ export async function chatOrchestrate(
     browserService: input.browserService,
   });
 
+  const runBrowserTaskTool = createRunBrowserTaskTool({
+    daemonController: input.daemonController,
+    createModel: () => createModel(config),
+  });
+
   const tools = {
     listProjects: listProjectsTool,
     listSessions: listSessionsTool,
@@ -199,6 +240,7 @@ export async function chatOrchestrate(
     createSession: createSessionTool,
     sendMessageToSession: sendMessageToSessionTool,
     getSessionScreenshot: getSessionScreenshotTool,
+    runBrowserTask: runBrowserTaskTool,
   };
 
   const systemPrompt = buildChatOrchestratorPrompt({

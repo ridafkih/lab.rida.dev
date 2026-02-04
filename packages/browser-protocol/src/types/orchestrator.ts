@@ -39,6 +39,19 @@ export interface StateStore {
   setLastUrl(sessionId: string, url: string | null): Promise<void>;
 }
 
+export interface CommandResult<T = unknown> {
+  id: string;
+  success: boolean;
+  data?: T;
+  error?: string;
+}
+
+export interface BrowserCommand {
+  id: string;
+  action: string;
+  [key: string]: unknown;
+}
+
 export interface DaemonController {
   start(sessionId: string, url?: string): Promise<{ port: number }>;
   stop(sessionId: string): Promise<void>;
@@ -47,6 +60,7 @@ export interface DaemonController {
   getCurrentUrl(sessionId: string): Promise<string | null>;
   launch(sessionId: string): Promise<void>;
   isHealthy(): Promise<boolean>;
+  executeCommand<T = unknown>(sessionId: string, command: BrowserCommand): Promise<CommandResult<T>>;
 }
 
 export interface ReconcilerConfig {

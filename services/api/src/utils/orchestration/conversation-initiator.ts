@@ -3,7 +3,7 @@ import { findSessionById, updateSessionOpencodeId } from "../repositories/sessio
 import { getProjectSystemPrompt } from "../repositories/project.repository";
 import { resolveWorkspacePathBySession } from "../workspace/resolve-path";
 import { publisher } from "../../clients/publisher";
-import { setLastMessage } from "../monitors/last-message-store";
+import { setLastMessage } from "../stores/last-message-store";
 import { createPromptContext } from "../prompts/context";
 import { createDefaultPromptService } from "../prompts/builder";
 

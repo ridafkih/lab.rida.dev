@@ -102,3 +102,45 @@ export async function cleanupOrphanedNetworks(): Promise<number> {
 
   return orphanedSessionIds.length;
 }
+
+export async function reconcileNetworkConnections(): Promise<void> {
+  const activeSessions = await findActiveSessionsForReconciliation();
+
+  if (activeSessions.length === 0) {
+    return;
+  }
+
+  console.log(`[Network] Reconciling network connections for ${activeSessions.length} sessions`);
+
+  for (const session of activeSessions) {
+    const networkName = formatNetworkName(session.id);
+
+    const networkExists = await docker.raw
+      .getNetwork(networkName)
+      .inspect()
+      .then(() => true)
+      .catch(() => false);
+
+    if (!networkExists) {
+      continue;
+    }
+
+    if (config.browserContainerName) {
+      try {
+        await connectContainerToNetworkIfNotConnected(config.browserContainerName, networkName);
+      } catch (error) {
+        console.warn(`[Network] Failed to reconnect browser to network ${networkName}:`, error);
+      }
+    }
+
+    if (config.opencodeContainerName) {
+      try {
+        await connectContainerToNetworkIfNotConnected(config.opencodeContainerName, networkName);
+      } catch (error) {
+        console.warn(`[Network] Failed to reconnect opencode to network ${networkName}:`, error);
+      }
+    }
+  }
+
+  console.log(`[Network] Network reconciliation complete`);
+}

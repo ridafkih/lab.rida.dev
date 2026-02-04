@@ -35,6 +35,8 @@ export {
   type StateStore,
   type StateStoreOptions,
   type DaemonController,
+  type CommandResult,
+  type BrowserCommand,
   type Reconciler,
   type ReconcilerConfig,
   type Orchestrator,
@@ -62,3 +64,5 @@ export { createEventDrivenReconciler, type EventDrivenReconciler } from "./utils
 export { createSessionManager } from "./utils/session-manager";
 
 export { createOrchestrator } from "./utils/orchestrator";
+
+export { executeCommand } from "./utils/execute-command";

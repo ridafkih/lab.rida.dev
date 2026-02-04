@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.500.0",
+    "@lab/browser-protocol": "workspace:*",
     "@lab/sandbox-docker": "workspace:*",
     "@modelcontextprotocol/sdk": "^1.25.0",
     "@types/shell-quote": "^1.7.5",

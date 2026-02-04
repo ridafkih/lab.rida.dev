@@ -9,8 +9,8 @@ import {
   findPortsByContainerId,
 } from "../repositories/container.repository";
 import { opencode } from "../../clients/opencode";
-import { getInferenceStatus } from "../monitors/inference-status-store";
-import { getLastMessage, setLastMessage } from "../monitors/last-message-store";
+import { getInferenceStatus } from "../stores/inference-status-store";
+import { getLastMessage, setLastMessage } from "../stores/last-message-store";
 import { resolveWorkspacePathBySession } from "../workspace/resolve-path";
 import type { BrowserService } from "../browser/browser-service";
 import type { AppSchema } from "@lab/multiplayer-sdk";

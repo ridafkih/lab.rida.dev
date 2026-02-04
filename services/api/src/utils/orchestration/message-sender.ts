@@ -2,7 +2,7 @@ import { opencode } from "../../clients/opencode";
 import { findSessionById } from "../repositories/session.repository";
 import { resolveWorkspacePathBySession } from "../workspace/resolve-path";
 import { publisher } from "../../clients/publisher";
-import { setLastMessage } from "../monitors/last-message-store";
+import { setLastMessage } from "../stores/last-message-store";
 
 export interface SendMessageOptions {
   sessionId: string;

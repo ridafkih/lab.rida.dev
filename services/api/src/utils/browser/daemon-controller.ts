@@ -1,9 +1,14 @@
 import {
   type DaemonStatus,
+  type BrowserCommand,
+  type CommandResult,
   StatusResponse,
   UrlResponse,
   BrowserError,
+  executeCommand,
 } from "@lab/browser-protocol";
+
+export { executeCommand };
 
 export const start = async (
   baseUrl: string,

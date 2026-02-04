@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { tool } from "ai";
 import { findSessionById } from "../../repositories/session.repository";
-import { getInferenceStatus } from "../../monitors/inference-status-store";
+import { getInferenceStatus } from "../../stores/inference-status-store";
 
 const inputSchema = z.object({
   sessionId: z.string().describe("The session ID to check status for"),

@@ -81,8 +81,8 @@ export class ApiClient {
     });
 
     if (!response.ok) {
-      const error = await response.json().catch(() => ({ error: "Unknown error" }));
-      throw new Error(`Chat orchestration failed: ${error.error || response.statusText}`);
+      const error = await response.text();
+      throw new Error(`Chat orchestration failed: ${error || response.statusText}`);
     }
 
     return response.json();

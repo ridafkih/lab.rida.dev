@@ -8,30 +8,14 @@ import {
   type CommandNode,
   type ToolResult,
 } from "../utils/hierarchical-tool";
+import {
+  executeCommand as baseExecuteCommand,
+  type CommandResult,
+  type BrowserCommand,
+} from "@lab/browser-protocol";
 
-interface CommandResponse {
-  id: string;
-  success: boolean;
-  data?: unknown;
-  error?: string;
-}
-
-async function executeCommand(
-  sessionId: string,
-  command: Record<string, unknown>,
-): Promise<CommandResponse> {
-  const response = await fetch(`${config.browserDaemonUrl}/daemons/${sessionId}/command`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(command),
-  });
-
-  if (!response.ok) {
-    const text = await response.text();
-    return { id: command.id as string, success: false, error: `HTTP ${response.status}: ${text}` };
-  }
-
-  return response.json();
+function executeCommand(sessionId: string, command: BrowserCommand): Promise<CommandResult> {
+  return baseExecuteCommand(config.browserDaemonUrl, sessionId, command);
 }
 
 function createS3Client(): S3Client {
@@ -46,7 +30,11 @@ function createS3Client(): S3Client {
   });
 }
 
-async function uploadToRustFS(data: Buffer, filename: string): Promise<string> {
+async function uploadToRustFS(
+  data: Buffer,
+  filename: string,
+  contentType: string = "image/png",
+): Promise<string> {
   const s3 = createS3Client();
 
   await s3.send(
@@ -54,7 +42,7 @@ async function uploadToRustFS(data: Buffer, filename: string): Promise<string> {
       Bucket: config.rustfs.bucket,
       Key: filename,
       Body: data,
-      ContentType: "image/png",
+      ContentType: contentType,
     }),
   );
 
@@ -68,7 +56,7 @@ function errorResult(message: string): ToolResult {
   };
 }
 
-function handleResult(result: CommandResponse): ToolResult {
+function handleResult(result: CommandResult): ToolResult {
   if (!result.success) {
     return {
       isError: true,
@@ -93,7 +81,7 @@ function handleResult(result: CommandResponse): ToolResult {
 
 async function handleScreenshotResult(
   sessionId: string,
-  result: CommandResponse,
+  result: CommandResult,
 ): Promise<ToolResult> {
   if (!result.success) {
     return {
@@ -136,6 +124,54 @@ async function handleScreenshotResult(
   }
 }
 
+async function handleRecordingStopResult(
+  sessionId: string,
+  result: CommandResult,
+): Promise<ToolResult> {
+  if (!result.success) {
+    return {
+      isError: true,
+      content: [{ type: "text", text: `Error: ${result.error || "Failed to stop recording"}` }],
+    };
+  }
+
+  const data = result.data as {
+    path?: string;
+    frames?: number;
+    base64?: string;
+    mimeType?: string;
+  } | null;
+
+  if (!data?.base64) {
+    return {
+      isError: true,
+      content: [{ type: "text", text: "Error: Recording data not returned" }],
+    };
+  }
+
+  const buffer = Buffer.from(data.base64, "base64");
+  const timestamp = Date.now();
+  const filename = `${sessionId}/recording-${timestamp}.webm`;
+
+  try {
+    const url = await uploadToRustFS(buffer, filename, "video/webm");
+    return {
+      content: [
+        {
+          type: "text",
+          text: `Recording stopped successfully. Frames captured: ${data.frames ?? "unknown"}. Video available at ${url}`,
+        },
+      ],
+    };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return {
+      isError: true,
+      content: [{ type: "text", text: `Error: Failed to upload recording: ${message}` }],
+    };
+  }
+}
+
 function simpleHandler(
   action: string,
   requiredParams: string[] = [],
@@ -148,15 +184,17 @@ function simpleHandler(
       }
     }
 
-    const command: Record<string, unknown> = {
-      id: ctx.generateCommandId(),
-      action,
-    };
-
+    const extra: Record<string, unknown> = {};
     for (const [key, value] of Object.entries(args)) {
       const mappedKey = paramMapping?.[key] ?? key;
-      command[mappedKey] = value;
+      extra[mappedKey] = value;
     }
+
+    const command: BrowserCommand = {
+      id: ctx.generateCommandId(),
+      action,
+      ...extra,
+    };
 
     const result = await executeCommand(ctx.sessionId, command);
     return handleResult(result);
@@ -172,6 +210,71 @@ function screenshotHandler(): CommandNode["handler"] {
     };
     const result = await executeCommand(ctx.sessionId, command);
     return handleScreenshotResult(ctx.sessionId, result);
+  };
+}
+
+function recordingStartHandler(): CommandNode["handler"] {
+  return async (args, ctx) => {
+    const timeout = typeof args.timeout === "number" ? args.timeout : 60000;
+    const maxTimeout = 5 * 60 * 1000; // 5 minutes
+    const clampedTimeout = Math.min(Math.max(timeout, 1000), maxTimeout);
+
+    const command: BrowserCommand = {
+      id: ctx.generateCommandId(),
+      action: "recording_start",
+      url: args.url,
+      timeout: clampedTimeout,
+    };
+    const result = await executeCommand(ctx.sessionId, command);
+    if (!result.success) {
+      return errorResult(result.error || "Failed to start recording");
+    }
+    return {
+      content: [
+        {
+          type: "text",
+          text: `Recording started. Recording will automatically stop after ${clampedTimeout / 1000} seconds if not stopped manually.`,
+        },
+      ],
+    };
+  };
+}
+
+function recordingStopHandler(): CommandNode["handler"] {
+  return async (_args, ctx) => {
+    const command: BrowserCommand = {
+      id: ctx.generateCommandId(),
+      action: "recording_stop",
+    };
+    const result = await executeCommand(ctx.sessionId, command);
+    return handleRecordingStopResult(ctx.sessionId, result);
+  };
+}
+
+function recordingRestartHandler(): CommandNode["handler"] {
+  return async (args, ctx) => {
+    const timeout = typeof args.timeout === "number" ? args.timeout : 60000;
+    const maxTimeout = 5 * 60 * 1000; // 5 minutes
+    const clampedTimeout = Math.min(Math.max(timeout, 1000), maxTimeout);
+
+    const command: BrowserCommand = {
+      id: ctx.generateCommandId(),
+      action: "recording_restart",
+      url: args.url,
+      timeout: clampedTimeout,
+    };
+    const result = await executeCommand(ctx.sessionId, command);
+    if (!result.success) {
+      return errorResult(result.error || "Failed to restart recording");
+    }
+    return {
+      content: [
+        {
+          type: "text",
+          text: `Recording restarted. Previous recording was saved. New recording will automatically stop after ${clampedTimeout / 1000} seconds if not stopped manually.`,
+        },
+      ],
+    };
   };
 }
 
@@ -605,6 +708,47 @@ const browserTree: Record<string, CommandNode> = {
           selector: z.string().optional(),
         },
         handler: simpleHandler("wheel"),
+      },
+    },
+  },
+
+  record: {
+    description: "Video recording controls for capturing browser sessions as WebM videos",
+    children: {
+      start: {
+        description:
+          "Start recording the browser session. Creates a WebM video. Note: Recording requires a fresh browser context which may clear cookies/storage state. Default timeout is 60 seconds (max 5 minutes).",
+        params: {
+          url: z
+            .string()
+            .optional()
+            .describe("Optional URL to navigate to before recording starts"),
+          timeout: z
+            .number()
+            .optional()
+            .describe(
+              "Recording timeout in milliseconds. Default: 60000 (60s). Max: 300000 (5 min). Increase for longer recordings, decrease for quick captures.",
+            ),
+        },
+        handler: recordingStartHandler(),
+      },
+      stop: {
+        description: "Stop the current recording and upload the video to storage",
+        handler: recordingStopHandler(),
+      },
+      restart: {
+        description:
+          "Stop the current recording (saving it) and immediately start a new one. Useful for segmenting long sessions. Default timeout is 60 seconds (max 5 minutes).",
+        params: {
+          url: z.string().optional().describe("Optional URL to navigate to for the new recording"),
+          timeout: z
+            .number()
+            .optional()
+            .describe(
+              "Recording timeout in milliseconds. Default: 60000 (60s). Max: 300000 (5 min). Increase for longer recordings, decrease for quick captures.",
+            ),
+        },
+        handler: recordingRestartHandler(),
       },
     },
   },

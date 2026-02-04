@@ -1,3 +1,4 @@
+import type { DaemonController } from "@lab/browser-protocol";
 import type { BrowserService } from "../utils/browser/browser-service";
 import type { PromptService } from "./prompt";
 
@@ -5,6 +6,7 @@ export type HttpMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE" | "HEAD" | 
 
 export interface RouteContext {
   browserService: BrowserService;
+  daemonController: DaemonController;
   initializeSessionContainers: (sessionId: string, projectId: string) => Promise<void>;
   promptService?: PromptService;
 }

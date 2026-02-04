@@ -1,21 +1,4 @@
 services:
-  caddy:
-    image: caddy:2-alpine
-    container_name: lab-caddy-proxy
-    ports:
-      - "8443:443"
-      - "2019:2019"
-    command: caddy run --config /etc/caddy/caddy.json
-    healthcheck:
-      test: ["CMD", "wget", "-q", "--spider", "http://localhost:2019/config/"]
-      interval: 5s
-      timeout: 1s
-      retries: 6
-      start_period: 10s
-      start_interval: 1s
-    volumes:
-      - ./caddy.json:/etc/caddy/caddy.json:ro
-
   postgres:
     image: postgres:17-alpine
     container_name: lab-postgres
@@ -122,14 +105,13 @@ services:
       API_PORT: $API_PORT
       DATABASE_URL: $DATABASE_URL
       OPENCODE_URL: $OPENCODE_URL
-      CADDY_ADMIN_URL: $CADDY_ADMIN_URL
-      CADDY_CONTAINER_NAME: $CADDY_CONTAINER_NAME
       PROXY_BASE_DOMAIN: $PROXY_BASE_DOMAIN
       BROWSER_SOCKET_VOLUME: $BROWSER_SOCKET_VOLUME
       BROWSER_API_URL: $BROWSER_API_URL
       BROWSER_WS_HOST: $BROWSER_WS_HOST
       BROWSER_CONTAINER_NAME: $BROWSER_CONTAINER_NAME
       OPENCODE_CONTAINER_NAME: $OPENCODE_CONTAINER_NAME
+      PROXY_CONTAINER_NAME: $PROXY_CONTAINER_NAME
       POOL_SIZE: $POOL_SIZE
       ORCHESTRATOR_MODEL_PROVIDER: $ORCHESTRATOR_MODEL_PROVIDER
       ORCHESTRATOR_MODEL_NAME: $ORCHESTRATOR_MODEL_NAME

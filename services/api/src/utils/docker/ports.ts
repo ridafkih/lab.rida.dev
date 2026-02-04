@@ -1,6 +1,6 @@
 import { db } from "@lab/database/client";
 import { portReservations } from "@lab/database/schema/port-reservations";
-import { eq, and, isNull, or, lt } from "drizzle-orm";
+import { eq, and, isNull, or, gt, lt } from "drizzle-orm";
 
 export type PortType = "cdp" | "stream" | "container";
 
@@ -25,7 +25,7 @@ async function getUsedPortsForType(portType: PortType): Promise<Set<number>> {
     .where(
       and(
         eq(portReservations.type, portType),
-        or(isNull(portReservations.expiresAt), lt(now, portReservations.expiresAt)),
+        or(isNull(portReservations.expiresAt), gt(portReservations.expiresAt, now)),
       ),
     );
 

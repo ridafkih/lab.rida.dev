@@ -152,6 +152,18 @@
         "typescript": "^5",
       },
     },
+    "packages/subagents": {
+      "name": "@lab/subagents",
+      "version": "0.1.0",
+      "dependencies": {
+        "@lab/browser-protocol": "workspace:*",
+        "ai": "^6.0.67",
+        "zod": "^4.3.6",
+      },
+      "devDependencies": {
+        "typescript": "^5",
+      },
+    },
     "packages/ui": {
       "name": "@lab/ui",
       "version": "0.1.0",
@@ -186,6 +198,7 @@
         "@lab/multiplayer-sdk": "workspace:*",
         "@lab/multiplayer-server": "workspace:*",
         "@lab/sandbox-docker": "workspace:*",
+        "@lab/subagents": "workspace:*",
         "@opencode-ai/sdk": "^1.1.41",
         "ai": "^6.0.67",
         "drizzle-orm": "^0.38.0",
@@ -218,6 +231,7 @@
       "version": "0.1.0",
       "dependencies": {
         "@aws-sdk/client-s3": "^3.500.0",
+        "@lab/browser-protocol": "workspace:*",
         "@lab/sandbox-docker": "workspace:*",
         "@modelcontextprotocol/sdk": "^1.25.0",
         "@types/shell-quote": "^1.7.5",
@@ -576,6 +590,8 @@
     "@lab/sandbox-docker": ["@lab/sandbox-docker@workspace:packages/sandbox-docker"],
 
     "@lab/sandbox-sdk": ["@lab/sandbox-sdk@workspace:packages/sandbox-sdk"],
+
+    "@lab/subagents": ["@lab/subagents@workspace:packages/subagents"],
 
     "@lab/ui": ["@lab/ui@workspace:packages/ui"],
 

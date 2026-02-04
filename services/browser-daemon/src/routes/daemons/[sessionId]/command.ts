@@ -22,6 +22,35 @@ async function transformScreenshotResponse(response: {
   }
 }
 
+async function transformRecordingResponse(response: {
+  id: string;
+  success: boolean;
+  data?: unknown;
+  error?: string;
+}): Promise<typeof response> {
+  if (!response.success) return response;
+  if (typeof response.data !== "object" || response.data === null) return response;
+  if (!("path" in response.data) || typeof response.data.path !== "string") return response;
+
+  const data = response.data as { path: string; frames?: number };
+
+  try {
+    const buffer = await fs.readFile(data.path);
+    const base64 = buffer.toString("base64");
+    return {
+      ...response,
+      data: {
+        path: data.path,
+        frames: data.frames,
+        base64,
+        mimeType: "video/webm",
+      },
+    };
+  } catch {
+    return { ...response, success: false, error: `Failed to read recording file: ${data.path}` };
+  }
+}
+
 export const POST: RouteHandler = async (request, params, { daemonManager }) => {
   const sessionId = params.sessionId!;
 
@@ -50,7 +79,15 @@ export const POST: RouteHandler = async (request, params, { daemonManager }) => 
   console.log(`[Command] ${sessionId} -> ${command.action}`);
   const response = await daemonManager.executeCommand(sessionId, command);
 
-  if (command.action !== "screenshot") return Response.json(response);
-  const transformed = await transformScreenshotResponse(response);
-  return Response.json(transformed);
+  if (command.action === "screenshot") {
+    const transformed = await transformScreenshotResponse(response);
+    return Response.json(transformed);
+  }
+
+  if (command.action === "recording_stop") {
+    const transformed = await transformRecordingResponse(response);
+    return Response.json(transformed);
+  }
+
+  return Response.json(response);
 };

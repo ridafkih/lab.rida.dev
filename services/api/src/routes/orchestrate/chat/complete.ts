@@ -52,6 +52,7 @@ const POST: RouteHandler = async (request, _params, context) => {
       platformOrigin,
       platformChatId,
       browserService: context.browserService,
+      daemonController: context.daemonController,
     });
 
     await saveOrchestratorMessage({

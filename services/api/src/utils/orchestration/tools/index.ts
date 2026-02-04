@@ -13,3 +13,4 @@ export {
   createGetSessionScreenshotTool,
   type GetSessionScreenshotToolContext,
 } from "./get-session-screenshot";
+export { createRunBrowserTaskTool, type RunBrowserTaskToolContext } from "./run-browser-task";

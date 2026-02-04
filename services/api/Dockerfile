@@ -24,6 +24,7 @@ COPY --from=build /app/packages/sandbox-docker/src ./packages/sandbox-docker/src
 COPY --from=build /app/packages/multiplayer-server/src ./packages/multiplayer-server/src
 COPY --from=build /app/packages/multiplayer-sdk/src ./packages/multiplayer-sdk/src
 COPY --from=build /app/packages/browser-protocol/src ./packages/browser-protocol/src
+COPY --from=build /app/packages/subagents/src ./packages/subagents/src
 
 ENV NODE_ENV=production
 EXPOSE 4000

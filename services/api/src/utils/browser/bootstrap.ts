@@ -24,6 +24,7 @@ import {
   getCurrentUrl,
   launch,
   isHealthy,
+  executeCommand,
 } from "./daemon-controller";
 
 export interface BrowserBootstrapConfig {
@@ -56,36 +57,48 @@ async function getInitialNavigationUrl(sessionId: string, _port: number): Promis
   return `http://${service.hostname}:${service.port}/`;
 }
 
-function getCaddyPollUrl(sessionId: string, port: number): string {
-  return `http://caddy/${sessionId}--${port}/`;
-}
-
 async function waitForService(
   sessionId: string,
   port: number,
   timeoutMs = 30000,
   intervalMs = 250,
 ): Promise<void> {
-  const url = getCaddyPollUrl(sessionId, port);
-  const start = Date.now();
+  const proxyUrl = "http://lab-proxy:8080/";
+  const hostHeader = `${sessionId}--${port}.localhost`;
+  const startTime = Date.now();
+  let lastStatus: number | string = "no response";
 
-  while (Date.now() - start < timeoutMs) {
-    const response = await fetch(url).catch(() => null);
-    if (response?.ok) {
-      const contentLength = response.headers.get("content-length");
-      if (contentLength && parseInt(contentLength, 10) > 0) {
-        return;
+  while (Date.now() - startTime < timeoutMs) {
+    const response = await fetch(proxyUrl, {
+      headers: { Host: hostHeader },
+    }).catch((err) => {
+      lastStatus = `fetch error: ${err.message}`;
+      return null;
+    });
+
+    if (response) {
+      lastStatus = response.status;
+      if (response.ok) {
+        const contentLength = response.headers.get("content-length");
+        if (contentLength && parseInt(contentLength, 10) > 0) {
+          return;
+        }
       }
     }
     await Bun.sleep(intervalMs);
   }
 
-  throw new Error(`Service not available: ${url}`);
+  throw new Error(`Service not available: ${sessionId}--${port} (last status: ${lastStatus})`);
+}
+
+export interface BrowserBootstrapResult {
+  browserService: BrowserService;
+  daemonController: DaemonController;
 }
 
 export const bootstrapBrowserService = async (
   config: BrowserBootstrapConfig,
-): Promise<BrowserService> => {
+): Promise<BrowserBootstrapResult> => {
   const baseUrl = config.browserApiUrl;
 
   const daemonController: DaemonController = {
@@ -96,9 +109,10 @@ export const bootstrapBrowserService = async (
     getCurrentUrl: (sessionId) => getCurrentUrl(baseUrl, sessionId),
     launch: (sessionId) => launch(baseUrl, sessionId),
     isHealthy: () => isHealthy(baseUrl),
+    executeCommand: (sessionId, command) => executeCommand(baseUrl, sessionId, command),
   };
 
-  const service = await createBrowserService(
+  const browserService = await createBrowserService(
     {
       browserWsHost: config.browserWsHost,
       browserDaemonUrl: baseUrl,
@@ -117,7 +131,7 @@ export const bootstrapBrowserService = async (
     },
   );
 
-  return service;
+  return { browserService, daemonController };
 };
 
 export const shutdownBrowserService = (service: BrowserService): void => {

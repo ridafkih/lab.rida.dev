@@ -27,8 +27,8 @@ export function createClient(config: ClientConfig) {
     });
 
     if (!response.ok) {
-      const error = await response.json().catch(() => ({ error: response.statusText }));
-      throw new Error(error.error || response.statusText);
+      const error = await response.text();
+      throw new Error(error || response.statusText);
     }
 
     if (response.status === 204) {
