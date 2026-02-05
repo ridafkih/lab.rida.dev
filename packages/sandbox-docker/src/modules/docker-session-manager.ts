@@ -37,19 +37,17 @@ export class DockerSessionManager implements SessionManager {
     const networks = await this.provider.listNetworks({ labels: [SESSION_LABEL] });
     const active = new Set(activeSessionIds);
 
-    const orphanedSessionIds = networks
-      .map((network) => network.labels[SESSION_LABEL])
-      .filter((sessionId): sessionId is string => !!sessionId && !active.has(sessionId));
+    const orphanedNetworkIds = this.getOrphanedSessionNetworkIds(networks, active);
 
     await Promise.all(
-      orphanedSessionIds.map((sessionId) =>
-        this.removeSessionNetwork(sessionId).catch((error) =>
+      orphanedNetworkIds.map((networkId) =>
+        this.removeSessionNetworkById(networkId).catch((error) =>
           console.warn("[Network] Session network cleanup failed:", error),
         ),
       ),
     );
 
-    return orphanedSessionIds.length;
+    return orphanedNetworkIds.length;
   }
 
   async reconcileSessionNetworks(activeSessionIds: string[]): Promise<void> {
@@ -59,6 +57,21 @@ export class DockerSessionManager implements SessionManager {
 
     console.log(
       `[Network] Reconciling network connections for ${activeSessionIds.length} sessions`,
+    );
+
+    const networks = await this.provider.listNetworks({ labels: [SESSION_LABEL] });
+    const active = new Set(activeSessionIds);
+    const orphanedNetworkIds = this.getOrphanedSessionNetworkIds(networks, active);
+
+    await Promise.all(
+      orphanedNetworkIds.map((networkId) =>
+        this.disconnectSharedContainers(networkId).catch((error) =>
+          console.warn(
+            `[Network] Failed to prune shared container connections for ${networkId}:`,
+            error,
+          ),
+        ),
+      ),
     );
 
     for (const sessionId of activeSessionIds) {
@@ -101,5 +114,20 @@ export class DockerSessionManager implements SessionManager {
         );
       }
     }
+  }
+
+  private getOrphanedSessionNetworkIds(
+    networks: { name: string; labels: Record<string, string> }[],
+    activeSessionIds: Set<string>,
+  ): string[] {
+    return networks
+      .map((network) => network.labels[SESSION_LABEL])
+      .filter((sessionId): sessionId is string => !!sessionId && !activeSessionIds.has(sessionId))
+      .map((sessionId) => formatNetworkName(sessionId));
+  }
+
+  private async removeSessionNetworkById(networkId: string): Promise<void> {
+    await this.disconnectSharedContainers(networkId);
+    await this.provider.removeNetwork(networkId);
   }
 }
