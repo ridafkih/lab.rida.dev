@@ -15,12 +15,19 @@ export interface IncomingPlatformMessage {
   };
 }
 
-export interface MessageAttachment {
-  type: "image";
-  data: string;
-  encoding: "base64";
-  format: string;
-}
+export type MessageAttachment =
+  | {
+      type: "image";
+      data: string;
+      encoding: "base64";
+      format: string;
+    }
+  | {
+      type: "image_url";
+      url: string;
+      width?: number;
+      height?: number;
+    };
 
 export interface OutgoingPlatformMessage {
   platform: PlatformType;

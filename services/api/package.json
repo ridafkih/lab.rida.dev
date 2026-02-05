@@ -12,6 +12,7 @@
     "@ai-sdk/anthropic": "^3.0.35",
     "@ai-sdk/openai": "^3.0.25",
     "@lab/browser-protocol": "workspace:*",
+    "@lab/context": "workspace:*",
     "@lab/database": "workspace:*",
     "@lab/multiplayer-sdk": "workspace:*",
     "@lab/multiplayer-server": "workspace:*",

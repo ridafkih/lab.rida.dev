@@ -15,6 +15,16 @@ RUN bun install --ignore-scripts
 COPY --from=prune /app/out/full/ .
 
 FROM base AS runtime
+
+# Install FFmpeg development libraries and C headers for native image resizing
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libc6-dev \
+    libavcodec-dev \
+    libavformat-dev \
+    libavutil-dev \
+    libswscale-dev \
+    && rm -rf /var/lib/apt/lists/*
+
 COPY --from=prune /app/out/json/ .
 RUN bun install --ignore-scripts
 COPY --from=build /app/services/api/src ./services/api/src
@@ -25,6 +35,8 @@ COPY --from=build /app/packages/multiplayer-server/src ./packages/multiplayer-se
 COPY --from=build /app/packages/multiplayer-sdk/src ./packages/multiplayer-sdk/src
 COPY --from=build /app/packages/browser-protocol/src ./packages/browser-protocol/src
 COPY --from=build /app/packages/subagents/src ./packages/subagents/src
+COPY --from=build /app/packages/ffmpeg/src ./packages/ffmpeg/src
+COPY --from=build /app/packages/context/src ./packages/context/src
 
 ENV NODE_ENV=production
 EXPOSE 4000

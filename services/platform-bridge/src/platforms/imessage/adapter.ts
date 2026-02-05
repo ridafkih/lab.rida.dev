@@ -145,11 +145,39 @@ export class IMessageAdapter implements PlatformAdapter {
     const tempDir = join(tmpdir(), "lab-imessage-attachments");
     await mkdir(tempDir, { recursive: true });
 
-    const extension = attachment.format === "png" ? "png" : attachment.format;
+    let buffer: Buffer;
+    let extension: string;
+
+    if (attachment.type === "image_url") {
+      // Fetch image from URL
+      const response = await fetch(attachment.url);
+      if (!response.ok) {
+        throw new Error(`Failed to fetch image: ${response.statusText}`);
+      }
+      const arrayBuffer = await response.arrayBuffer();
+      buffer = Buffer.from(arrayBuffer);
+
+      // Determine extension from content-type or URL
+      const contentType = response.headers.get("content-type");
+      if (contentType?.includes("png")) {
+        extension = "png";
+      } else if (contentType?.includes("jpeg") || contentType?.includes("jpg")) {
+        extension = "jpg";
+      } else if (contentType?.includes("webp")) {
+        extension = "webp";
+      } else {
+        // Fallback: try to get from URL
+        const urlPath = new URL(attachment.url).pathname;
+        extension = urlPath.split(".").pop() || "png";
+      }
+    } else {
+      // Base64 encoded image
+      extension = attachment.format === "png" ? "png" : attachment.format;
+      buffer = Buffer.from(attachment.data, attachment.encoding);
+    }
+
     const fileName = `${randomUUID()}.${extension}`;
     const filePath = join(tempDir, fileName);
-
-    const buffer = Buffer.from(attachment.data, attachment.encoding);
     await writeFile(filePath, buffer);
 
     return filePath;

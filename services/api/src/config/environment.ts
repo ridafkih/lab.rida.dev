@@ -45,6 +45,13 @@ export const config = {
   githubClientSecret: getOptionalEnv("GITHUB_CLIENT_SECRET"),
   githubCallbackUrl: getOptionalEnv("GITHUB_CALLBACK_URL"),
   frontendUrl: getOptionalEnv("FRONTEND_URL"),
+  rustfs: {
+    endpoint: getOptionalEnv("RUSTFS_ENDPOINT"),
+    accessKey: getOptionalEnv("RUSTFS_ACCESS_KEY"),
+    secretKey: getOptionalEnv("RUSTFS_SECRET_KEY"),
+    bucket: getOptionalEnv("RUSTFS_BUCKET"),
+    publicUrl: getOptionalEnv("RUSTFS_PUBLIC_URL"),
+  },
 };
 
 export type Config = typeof config;

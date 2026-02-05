@@ -64,6 +64,18 @@
         "typescript": "^5",
       },
     },
+    "packages/context": {
+      "name": "@lab/context",
+      "version": "0.1.0",
+      "dependencies": {
+        "@aws-sdk/client-s3": "^3.705.0",
+        "@lab/ffmpeg": "workspace:*",
+      },
+      "devDependencies": {
+        "bun-types": "^1.2.11",
+        "typescript": "^5",
+      },
+    },
     "packages/database": {
       "name": "@lab/database",
       "version": "0.1.0",
@@ -76,6 +88,14 @@
         "drizzle-kit": "^0.30.0",
         "oxfmt": "0.27.0",
         "oxlint": "1.42.0",
+        "typescript": "^5",
+      },
+    },
+    "packages/ffmpeg": {
+      "name": "@lab/ffmpeg",
+      "version": "0.1.0",
+      "devDependencies": {
+        "bun-types": "^1.2.11",
         "typescript": "^5",
       },
     },
@@ -156,11 +176,14 @@
       "name": "@lab/subagents",
       "version": "0.1.0",
       "dependencies": {
+        "@ai-sdk/anthropic": "^3.0.35",
+        "@ai-sdk/openai": "^3.0.25",
         "@lab/browser-protocol": "workspace:*",
         "ai": "^6.0.67",
         "zod": "^4.3.6",
       },
       "devDependencies": {
+        "bun-types": "^1.2.11",
         "typescript": "^5",
       },
     },
@@ -194,6 +217,7 @@
         "@ai-sdk/anthropic": "^3.0.35",
         "@ai-sdk/openai": "^3.0.25",
         "@lab/browser-protocol": "workspace:*",
+        "@lab/context": "workspace:*",
         "@lab/database": "workspace:*",
         "@lab/multiplayer-sdk": "workspace:*",
         "@lab/multiplayer-server": "workspace:*",
@@ -573,7 +597,11 @@
 
     "@lab/client": ["@lab/client@workspace:packages/client"],
 
+    "@lab/context": ["@lab/context@workspace:packages/context"],
+
     "@lab/database": ["@lab/database@workspace:packages/database"],
+
+    "@lab/ffmpeg": ["@lab/ffmpeg@workspace:packages/ffmpeg"],
 
     "@lab/mcp": ["@lab/mcp@workspace:services/mcp"],
 
@@ -991,7 +1019,7 @@
 
     "acorn-jsx": ["acorn-jsx@5.3.2", "", { "peerDependencies": { "acorn": "^6.0.0 || ^7.0.0 || ^8.0.0" } }, "sha512-rq9s+JNhf0IChjtDXxllJ7g41oZk5SlXtp0LHwyA5cejwn7vKmKp4pPri6YEePv2PU65sAsegbXtIinmDFDXgQ=="],
 
-    "agent-browser": ["agent-browser@0.8.4", "", { "dependencies": { "playwright-core": "^1.57.0", "ws": "^8.19.0", "zod": "^3.22.4" }, "bin": { "agent-browser": "bin/agent-browser.js" } }, "sha512-zs2Lt8dmawlEtiBSaAzxxij0lTo1R9rSViKnGtA14CebAC3rr0dOu7Em+j2tSmLrvUsxXs42xpPJ1395b4WJ6w=="],
+    "agent-browser": ["agent-browser@0.8.10", "", { "dependencies": { "playwright-core": "^1.57.0", "ws": "^8.19.0", "zod": "^3.22.4" }, "bin": { "agent-browser": "bin/agent-browser.js" } }, "sha512-tL5ZfnAa+vZQfEUkEVyyZQFzF6+r9nE07UnjCFMhNFZA709dRc9KYIK1AOXwzBKNHrnxrCaAMgeNJin7NO7j5g=="],
 
     "ai": ["ai@6.0.67", "", { "dependencies": { "@ai-sdk/gateway": "3.0.32", "@ai-sdk/provider": "3.0.7", "@ai-sdk/provider-utils": "4.0.13", "@opentelemetry/api": "1.9.0" }, "peerDependencies": { "zod": "^3.25.76 || ^4.1.8" } }, "sha512-xBnTcByHCj3OcG6V8G1s6zvSEqK0Bdiu+IEXYcpGrve1iGFFRgcrKeZtr/WAW/7gupnSvBbDF24BEv1OOfqi1g=="],
 
@@ -1043,7 +1071,13 @@
 
     "bare-module-resolve": ["bare-module-resolve@1.12.1", "", { "dependencies": { "bare-semver": "^1.0.0" }, "peerDependencies": { "bare-url": "*" }, "optionalPeers": ["bare-url"] }, "sha512-hbmAPyFpEq8FoZMd5sFO3u6MC5feluWoGE8YKlA8fCrl6mNtx68Wjg4DTiDJcqRJaovTvOYKfYngoBUnbaT7eg=="],
 
+    "bare-os": ["bare-os@3.6.2", "", {}, "sha512-T+V1+1srU2qYNBmJCXZkUY5vQ0B4FSlL3QDROnKQYOqeiQR8UbjNHlPa+TIbM4cuidiN9GaTaOZgSEgsvPbh5A=="],
+
+    "bare-path": ["bare-path@3.0.0", "", { "dependencies": { "bare-os": "^3.0.1" } }, "sha512-tyfW2cQcB5NN8Saijrhqn0Zh7AnFNsnczRcuWODH0eYAXBsJ5gVxAUuNr7tsHSC6IZ77cA0SitzT+s47kot8Mw=="],
+
     "bare-semver": ["bare-semver@1.0.2", "", {}, "sha512-ESVaN2nzWhcI5tf3Zzcq9aqCZ676VWzqw07eEZ0qxAcEOAFYBa0pWq8sK34OQeHLY3JsfKXZS9mDyzyxGjeLzA=="],
+
+    "bare-url": ["bare-url@2.3.2", "", { "dependencies": { "bare-path": "^3.0.0" } }, "sha512-ZMq4gd9ngV5aTMa5p9+UfY0b3skwhHELaDkhEHetMdX0LRkW9kzaym4oo/Eh+Ghm0CCDuMTsRIGM/ytUc1ZYmw=="],
 
     "base64-js": ["base64-js@1.5.1", "", {}, "sha512-AKpaYlHn8t4SVbOHCy+b5+KKgvR4vrsD8vbvrbiQJps7fKDTkjkDry6ji0rUJjC0kzbNePLwzxq8iypo41qeWA=="],
 
@@ -1761,7 +1795,7 @@
 
     "pkce-challenge": ["pkce-challenge@5.0.1", "", {}, "sha512-wQ0b/W4Fr01qtpHlqSqspcj3EhBvimsdh0KlHhH8HRZnMsEa0ea2fTULOXOS9ccQr3om+GcGRk4e+isrZWV8qQ=="],
 
-    "playwright-core": ["playwright-core@1.58.0", "", { "bin": { "playwright-core": "cli.js" } }, "sha512-aaoB1RWrdNi3//rOeKuMiS65UCcgOVljU46At6eFcOFPFHWtd2weHRRow6z/n+Lec0Lvu0k9ZPKJSjPugikirw=="],
+    "playwright-core": ["playwright-core@1.58.1", "", { "bin": { "playwright-core": "cli.js" } }, "sha512-bcWzOaTxcW+VOOGBCQgnaKToLJ65d6AqfLVKEWvexyS3AS6rbXl+xdpYRMGSRBClPvyj44njOWoxjNdL/H9UNg=="],
 
     "possible-typed-array-names": ["possible-typed-array-names@1.1.0", "", {}, "sha512-/+5VFTchJDoVj3bhoqi6UeymcD00DAwb1nJwamzPvHEszJ4FpF6SNNbUbOS8yI56qHzdV8eK0qEfOSiodkTdxg=="],
 

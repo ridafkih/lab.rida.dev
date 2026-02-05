@@ -16,6 +16,10 @@
       "types": "./src/browser/index.ts",
       "default": "./src/browser/index.ts"
     },
+    "./vision": {
+      "types": "./src/vision/index.ts",
+      "default": "./src/vision/index.ts"
+    },
     "./*": {
       "types": "./src/*.ts",
       "default": "./src/*.ts"
@@ -25,11 +29,14 @@
     "types": "tsc --noEmit"
   },
   "dependencies": {
+    "@ai-sdk/anthropic": "^3.0.35",
+    "@ai-sdk/openai": "^3.0.25",
     "@lab/browser-protocol": "workspace:*",
     "ai": "^6.0.67",
     "zod": "^4.3.6"
   },
   "devDependencies": {
+    "bun-types": "^1.2.11",
     "typescript": "^5"
   }
 }

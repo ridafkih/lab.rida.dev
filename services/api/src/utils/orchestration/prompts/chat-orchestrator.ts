@@ -10,7 +10,8 @@ const platformGuidelines: Record<string, string> = {
 - Use plain text only - no markdown, code blocks, or special formatting
 - Break long responses into multiple short messages conceptually. Split messages up using two newlines.
 - Avoid bullet points or numbered lists - use natural sentences instead
-- Ensure your messages simply address the user's query, rather than chatting up.`,
+- Ensure your messages simply address the user's query, rather than chatting up.
+- Do not use colons before calling a tool`,
 
   slack: `You are responding via Slack. Format guidelines:
 - Use Slack's mrkdwn format: *bold*, _italic_, \`code\`, \`\`\`code blocks\`\`\`

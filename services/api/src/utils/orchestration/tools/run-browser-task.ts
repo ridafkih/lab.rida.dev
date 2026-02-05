@@ -3,10 +3,12 @@ import { tool } from "ai";
 import type { LanguageModel } from "ai";
 import type { DaemonController } from "@lab/browser-protocol";
 import { executeBrowserTask, type BrowserAgentContext } from "@lab/subagents/browser";
+import { ImageStore } from "@lab/context";
 
 export interface RunBrowserTaskToolContext {
   daemonController: DaemonController;
   createModel: () => LanguageModel;
+  imageStore?: ImageStore;
 }
 
 const inputSchema = z.object({
@@ -30,7 +32,9 @@ export function createRunBrowserTaskTool(toolContext: RunBrowserTaskToolContext)
 
   return tool({
     description:
-      "Spawns a browser sub-agent to perform web tasks autonomously. The sub-agent can navigate websites, click elements, fill forms, take screenshots, and extract information. Use this when the user needs to interact with or capture information from a website.",
+      "Spawns a browser sub-agent to perform web tasks autonomously. " +
+      "The sub-agent can navigate websites, click elements, fill forms, and extract information. " +
+      "Returns a final screenshot URL. To understand what's in the screenshot, use the analyzeImage tool.",
     inputSchema,
     execute: async ({ objective, startUrl }) => {
       try {
@@ -40,13 +44,40 @@ export function createRunBrowserTaskTool(toolContext: RunBrowserTaskToolContext)
           context: browserContext,
         });
 
+        if (result.screenshot && toolContext.imageStore) {
+          try {
+            const storeResult = await toolContext.imageStore.storeBase64(result.screenshot.data, {
+              prefix: "browser-tasks/",
+            });
+
+            return {
+              success: result.success,
+              summary: result.summary,
+              error: result.error,
+              stepsExecuted: result.stepsExecuted,
+              hasScreenshot: true,
+              screenshotUrl: storeResult.url,
+              screenshotWidth: storeResult.width,
+              screenshotHeight: storeResult.height,
+              wasResized: storeResult.wasResized,
+              trace: result.trace,
+            };
+          } catch (uploadError) {
+            console.warn("[RunBrowserTask] Failed to upload screenshot:", uploadError);
+            // Fall back to base64
+          }
+        }
+
+        // Screenshot available but upload failed/not configured
         return {
           success: result.success,
           summary: result.summary,
           error: result.error,
           stepsExecuted: result.stepsExecuted,
-          hasScreenshot: result.screenshot !== undefined,
-          screenshot: result.screenshot,
+          hasScreenshot: false,
+          screenshotError: result.screenshot
+            ? "Screenshot captured but storage not configured"
+            : undefined,
           trace: result.trace,
         };
       } catch (error) {

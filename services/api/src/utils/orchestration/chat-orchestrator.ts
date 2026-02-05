@@ -18,6 +18,9 @@ import { getPlatformConfig } from "../../config/platforms";
 import { breakDoubleNewlines } from "../streaming";
 import type { BrowserService } from "../browser/browser-service";
 import type { DaemonController } from "@lab/browser-protocol";
+import type { ImageStore } from "@lab/context";
+import type { ImageAnalyzerContext } from "@lab/subagents/vision";
+import { config } from "../../config/environment";
 
 export interface ChatOrchestratorInput {
   content: string;
@@ -32,12 +35,19 @@ export interface ChatOrchestratorInput {
 
 export type ChatOrchestratorAction = "response" | "created_session" | "forwarded_message";
 
-export interface MessageAttachment {
-  type: "image";
-  data: string;
-  encoding: "base64";
-  format: string;
-}
+export type MessageAttachment =
+  | {
+      type: "image";
+      data: string;
+      encoding: "base64";
+      format: string;
+    }
+  | {
+      type: "image_url";
+      url: string;
+      width?: number;
+      height?: number;
+    };
 
 export interface ChatOrchestratorResult {
   action: ChatOrchestratorAction;
@@ -75,19 +85,83 @@ function getChatModelConfig(): ChatModelConfig {
   return { provider, model, apiKey };
 }
 
-function createModel(config: ChatModelConfig): LanguageModel {
-  switch (config.provider) {
+function createModel(modelConfig: ChatModelConfig): LanguageModel {
+  switch (modelConfig.provider) {
     case "anthropic": {
-      const anthropic = createAnthropic({ apiKey: config.apiKey });
-      return anthropic(config.model);
+      const anthropic = createAnthropic({ apiKey: modelConfig.apiKey });
+      return anthropic(modelConfig.model);
     }
     case "openai": {
-      const openai = createOpenAI({ apiKey: config.apiKey });
-      return openai(config.model);
+      const openai = createOpenAI({ apiKey: modelConfig.apiKey });
+      return openai(modelConfig.model);
     }
     default:
-      throw new Error(`Unsupported chat orchestrator provider: ${config.provider}`);
+      throw new Error(`Unsupported chat orchestrator provider: ${modelConfig.provider}`);
   }
+}
+
+// Lazily created ImageStore singleton
+let imageStore: ImageStore | undefined;
+let imageStoreInitialized = false;
+
+async function getImageStore(): Promise<ImageStore | undefined> {
+  if (imageStoreInitialized) return imageStore;
+  imageStoreInitialized = true;
+
+  const { rustfs } = config;
+  if (
+    !rustfs.endpoint ||
+    !rustfs.accessKey ||
+    !rustfs.secretKey ||
+    !rustfs.bucket ||
+    !rustfs.publicUrl
+  ) {
+    console.log("[ChatOrchestrator] RustFS not configured, screenshots will use base64");
+    return undefined;
+  }
+
+  try {
+    // Dynamic import to avoid loading FFmpeg at module init time
+    const { ImageStore: ImageStoreClass } = await import("@lab/context");
+    imageStore = new ImageStoreClass({
+      endpoint: rustfs.endpoint,
+      accessKey: rustfs.accessKey,
+      secretKey: rustfs.secretKey,
+      bucket: rustfs.bucket,
+      publicUrl: rustfs.publicUrl,
+    });
+    console.log("[ChatOrchestrator] ImageStore initialized for screenshot uploads");
+  } catch (error) {
+    console.warn("[ChatOrchestrator] Failed to initialize ImageStore:", error);
+    return undefined;
+  }
+
+  return imageStore;
+}
+
+// Lazily created ImageAnalyzerContext singleton
+let visionContext: ImageAnalyzerContext | undefined;
+let visionContextInitialized = false;
+
+async function getVisionContext(): Promise<ImageAnalyzerContext | undefined> {
+  if (visionContextInitialized) return visionContext;
+  visionContextInitialized = true;
+
+  try {
+    // Dynamic import to avoid loading at module init time
+    const { createVisionContextFromEnv } = await import("@lab/subagents/vision");
+    visionContext = createVisionContextFromEnv();
+    if (visionContext) {
+      console.log("[ChatOrchestrator] VisionContext initialized for image analysis");
+    } else {
+      console.log("[ChatOrchestrator] No vision API key configured, analyzeImage tool disabled");
+    }
+  } catch (error) {
+    console.warn("[ChatOrchestrator] Failed to initialize VisionContext:", error);
+    return undefined;
+  }
+
+  return visionContext;
 }
 
 interface SessionInfo {
@@ -121,53 +195,32 @@ function isMessageForwardedOutput(
   );
 }
 
-interface ScreenshotData {
-  data: string;
-  encoding: "base64";
-  format: string;
+interface ScreenshotUrlOutput {
+  hasScreenshot: true;
+  screenshotUrl: string;
+  width?: number;
+  height?: number;
 }
 
-function isScreenshotOutput(
-  value: unknown,
-): value is { hasScreenshot: true; screenshot: ScreenshotData } {
+function isScreenshotUrlOutput(value: unknown): value is ScreenshotUrlOutput {
   if (typeof value !== "object" || value === null) return false;
   if (!("hasScreenshot" in value) || value.hasScreenshot !== true) return false;
-  if (!("screenshot" in value)) return false;
-
-  const screenshot = value.screenshot;
-  if (typeof screenshot !== "object" || screenshot === null) return false;
-  return (
-    "data" in screenshot &&
-    typeof screenshot.data === "string" &&
-    "encoding" in screenshot &&
-    screenshot.encoding === "base64" &&
-    "format" in screenshot &&
-    typeof screenshot.format === "string"
-  );
+  return "screenshotUrl" in value && typeof value.screenshotUrl === "string";
 }
 
-interface BrowserTaskOutput {
+interface BrowserTaskUrlOutput {
   success: boolean;
   hasScreenshot: true;
-  screenshot: ScreenshotData;
+  screenshotUrl: string;
+  screenshotWidth?: number;
+  screenshotHeight?: number;
 }
 
-function isBrowserTaskOutput(value: unknown): value is BrowserTaskOutput {
+function isBrowserTaskUrlOutput(value: unknown): value is BrowserTaskUrlOutput {
   if (typeof value !== "object" || value === null) return false;
   if (!("success" in value)) return false;
   if (!("hasScreenshot" in value) || value.hasScreenshot !== true) return false;
-  if (!("screenshot" in value)) return false;
-
-  const screenshot = value.screenshot;
-  if (typeof screenshot !== "object" || screenshot === null) return false;
-  return (
-    "data" in screenshot &&
-    typeof screenshot.data === "string" &&
-    "encoding" in screenshot &&
-    screenshot.encoding === "base64" &&
-    "format" in screenshot &&
-    typeof screenshot.format === "string"
-  );
+  return "screenshotUrl" in value && typeof value.screenshotUrl === "string";
 }
 
 function extractSessionInfoFromSteps<T extends { toolResults?: Array<{ output: unknown }> }>(
@@ -193,21 +246,22 @@ function extractSessionInfoFromSteps<T extends { toolResults?: Array<{ output: u
         wasForwarded = true;
       }
 
-      if (isScreenshotOutput(toolResult.output)) {
+      // URL-based screenshots (preferred - lower token usage)
+      if (isScreenshotUrlOutput(toolResult.output)) {
         attachments.push({
-          type: "image",
-          data: toolResult.output.screenshot.data,
-          encoding: toolResult.output.screenshot.encoding,
-          format: toolResult.output.screenshot.format,
+          type: "image_url",
+          url: toolResult.output.screenshotUrl,
+          width: toolResult.output.width,
+          height: toolResult.output.height,
         });
       }
 
-      if (isBrowserTaskOutput(toolResult.output)) {
+      if (isBrowserTaskUrlOutput(toolResult.output)) {
         attachments.push({
-          type: "image",
-          data: toolResult.output.screenshot.data,
-          encoding: toolResult.output.screenshot.encoding,
-          format: toolResult.output.screenshot.format,
+          type: "image_url",
+          url: toolResult.output.screenshotUrl,
+          width: toolResult.output.screenshotWidth,
+          height: toolResult.output.screenshotHeight,
         });
       }
     }
@@ -219,8 +273,10 @@ function extractSessionInfoFromSteps<T extends { toolResults?: Array<{ output: u
 export async function chatOrchestrate(
   input: ChatOrchestratorInput,
 ): Promise<ChatOrchestratorResult> {
-  const config = getChatModelConfig();
-  const model = createModel(config);
+  const modelConfig = getChatModelConfig();
+  const model = createModel(modelConfig);
+  const store = await getImageStore();
+  const vision = await getVisionContext();
 
   const createSessionTool = createCreateSessionTool({
     browserService: input.browserService,
@@ -233,14 +289,17 @@ export async function chatOrchestrate(
 
   const getSessionScreenshotTool = createGetSessionScreenshotTool({
     daemonController: input.daemonController,
+    imageStore: store,
   });
 
   const runBrowserTaskTool = createRunBrowserTaskTool({
     daemonController: input.daemonController,
-    createModel: () => createModel(config),
+    createModel: () => createModel(modelConfig),
+    imageStore: store,
   });
 
-  const tools = {
+  // Build base tools
+  const baseTools = {
     listProjects: listProjectsTool,
     listSessions: listSessionsTool,
     getSessionMessages: getSessionMessagesTool,
@@ -252,6 +311,14 @@ export async function chatOrchestrate(
     getSessionScreenshot: getSessionScreenshotTool,
     runBrowserTask: runBrowserTaskTool,
   };
+
+  // Conditionally add analyzeImage tool if vision is configured
+  const tools = vision
+    ? {
+        ...baseTools,
+        analyzeImage: (await import("@lab/subagents/vision")).createAnalyzeImageTool(vision),
+      }
+    : baseTools;
 
   const systemPrompt = buildChatOrchestratorPrompt({
     conversationHistory: input.conversationHistory,
@@ -345,8 +412,10 @@ export async function chatOrchestrate(
 export async function* chatOrchestrateStream(
   input: ChatOrchestratorInput,
 ): AsyncGenerator<ChatOrchestratorChunk, ChatOrchestratorResult, unknown> {
-  const config = getChatModelConfig();
-  const model = createModel(config);
+  const modelConfig = getChatModelConfig();
+  const model = createModel(modelConfig);
+  const store = await getImageStore();
+  const vision = await getVisionContext();
 
   const createSessionTool = createCreateSessionTool({
     browserService: input.browserService,
@@ -359,14 +428,17 @@ export async function* chatOrchestrateStream(
 
   const getSessionScreenshotTool = createGetSessionScreenshotTool({
     daemonController: input.daemonController,
+    imageStore: store,
   });
 
   const runBrowserTaskTool = createRunBrowserTaskTool({
     daemonController: input.daemonController,
-    createModel: () => createModel(config),
+    createModel: () => createModel(modelConfig),
+    imageStore: store,
   });
 
-  const tools = {
+  // Build base tools
+  const baseTools = {
     listProjects: listProjectsTool,
     listSessions: listSessionsTool,
     getSessionMessages: getSessionMessagesTool,
@@ -378,6 +450,14 @@ export async function* chatOrchestrateStream(
     getSessionScreenshot: getSessionScreenshotTool,
     runBrowserTask: runBrowserTaskTool,
   };
+
+  // Conditionally add analyzeImage tool if vision is configured
+  const tools = vision
+    ? {
+        ...baseTools,
+        analyzeImage: (await import("@lab/subagents/vision")).createAnalyzeImageTool(vision),
+      }
+    : baseTools;
 
   const systemPrompt = buildChatOrchestratorPrompt({
     conversationHistory: input.conversationHistory,
@@ -396,14 +476,55 @@ export async function* chatOrchestrateStream(
   });
 
   const collectedChunks: string[] = [];
+  let buffer = "";
   let chunkIndex = 0;
+  const delimiter = "\n\n";
 
-  for await (const chunk of breakDoubleNewlines(result.textStream)) {
-    console.log(`[ChatOrchestrateStream] chunk ${chunkIndex}: "${chunk.slice(0, 50)}..."`);
-    collectedChunks.push(chunk);
-    chunkIndex++;
-    yield { type: "chunk", text: chunk };
+  // Helper to flush buffer and yield chunk
+  const flushBuffer = function* () {
+    // Check for any complete chunks with delimiter
+    let delimiterIndex: number;
+    while ((delimiterIndex = buffer.indexOf(delimiter)) !== -1) {
+      const textBeforeDelimiter = buffer.slice(0, delimiterIndex).trim();
+      if (textBeforeDelimiter.length > 0) {
+        console.log(
+          `[ChatOrchestrateStream] chunk ${chunkIndex}: "${textBeforeDelimiter.slice(0, 50)}..."`,
+        );
+        collectedChunks.push(textBeforeDelimiter);
+        chunkIndex++;
+        yield { type: "chunk" as const, text: textBeforeDelimiter };
+      }
+      buffer = buffer.slice(delimiterIndex + delimiter.length);
+    }
+  };
+
+  // Helper to force flush remaining buffer (on tool call or end)
+  const forceFlushBuffer = function* () {
+    const remaining = buffer.trim();
+    if (remaining.length > 0) {
+      console.log(`[ChatOrchestrateStream] chunk ${chunkIndex}: "${remaining.slice(0, 50)}..."`);
+      collectedChunks.push(remaining);
+      chunkIndex++;
+      yield { type: "chunk" as const, text: remaining };
+    }
+    buffer = "";
+  };
+
+  // Use fullStream to detect both text and tool calls
+  for await (const event of result.fullStream) {
+    if (event.type === "text-delta") {
+      buffer += event.text;
+      // Yield any complete chunks (split on delimiter)
+      yield* flushBuffer();
+    } else if (event.type === "tool-call") {
+      // Flush any pending text before tool execution
+      yield* forceFlushBuffer();
+      console.log(`[ChatOrchestrateStream] tool call: ${event.toolName}`);
+    }
   }
+
+  // Flush any remaining text after stream ends
+  yield* forceFlushBuffer();
 
   console.log(`[ChatOrchestrateStream] total chunks: ${collectedChunks.length}`);
 

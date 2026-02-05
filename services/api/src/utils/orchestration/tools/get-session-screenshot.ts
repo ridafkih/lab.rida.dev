@@ -2,9 +2,11 @@ import { z } from "zod";
 import { tool } from "ai";
 import { findSessionById } from "../../repositories/session.repository";
 import type { DaemonController } from "@lab/browser-protocol";
+import { ImageStore } from "@lab/context";
 
 export interface GetSessionScreenshotToolContext {
   daemonController: DaemonController;
+  imageStore?: ImageStore;
 }
 
 const inputSchema = z.object({
@@ -20,7 +22,9 @@ const inputSchema = z.object({
 export function createGetSessionScreenshotTool(context: GetSessionScreenshotToolContext) {
   return tool({
     description:
-      "Gets a screenshot of the browser for a session. Set fullPage: true to capture the ENTIRE scrollable page in one image (recommended for long pages). Otherwise captures just the visible viewport.",
+      "Captures a screenshot of the browser for a session and returns a URL. " +
+      "Set fullPage: true to capture the ENTIRE scrollable page. " +
+      "To understand what's in the screenshot, use the analyzeImage tool with the returned URL.",
     inputSchema,
     execute: async ({ sessionId, fullPage }) => {
       const session = await findSessionById(sessionId);
@@ -43,14 +47,33 @@ export function createGetSessionScreenshotTool(context: GetSessionScreenshotTool
         };
       }
 
-      return {
-        hasScreenshot: true,
-        screenshot: {
-          data: result.data.base64,
-          encoding: "base64" as const,
-          format: "png",
-        },
-      };
+      if (!context.imageStore) {
+        return {
+          error: "Screenshot storage not configured",
+          hasScreenshot: false,
+        };
+      }
+
+      try {
+        const storeResult = await context.imageStore.storeBase64(result.data.base64, {
+          prefix: `screenshots/${sessionId}/`,
+        });
+
+        return {
+          hasScreenshot: true,
+          screenshotUrl: storeResult.url,
+          width: storeResult.width,
+          height: storeResult.height,
+          wasResized: storeResult.wasResized,
+          description: `Screenshot captured (${storeResult.width}x${storeResult.height})`,
+        };
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "Unknown error";
+        return {
+          error: `Failed to upload screenshot: ${message}`,
+          hasScreenshot: false,
+        };
+      }
     },
   });
 }
