@@ -4,6 +4,7 @@
   "type": "module",
   "scripts": {
     "start": "bun src/index.ts",
+    "start:pretty": "bun src/index.ts | pino-pretty",
     "types": "tsc --noEmit",
     "lint": "oxlint",
     "format": "oxfmt ."

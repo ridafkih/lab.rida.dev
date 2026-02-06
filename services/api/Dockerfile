@@ -5,7 +5,7 @@ FROM base AS source
 COPY . .
 
 FROM base AS prune
-RUN bun install --global turbo pino-pretty
+RUN bun install --global turbo
 COPY --from=source /app .
 RUN turbo prune @lab/api --docker
 
@@ -46,4 +46,4 @@ COPY --from=build /app/packages/prompts-sdk/src ./packages/prompts-sdk/src
 ENV NODE_ENV=production
 EXPOSE 4000
 
-CMD ["/bin/sh", "-c", "bun run --cwd services/api start | pino-pretty"]
+CMD ["bun", "run", "--cwd", "services/api", "start:pretty"]
