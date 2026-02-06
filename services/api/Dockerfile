@@ -5,7 +5,7 @@ FROM base AS source
 COPY . .
 
 FROM base AS prune
-RUN bun install --global turbo
+RUN bun install --global turbo pino-pretty
 COPY --from=source /app .
 RUN turbo prune @lab/api --docker
 
