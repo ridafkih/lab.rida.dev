@@ -554,9 +554,11 @@ function reconstructOldContent(newContent: string, patch: Patch): string {
       if (prefix === "-") {
         oldLines.push(content);
       } else if (prefix === "+") {
-        newLineIndex++;
       } else {
-        oldLines.push(newLines[newLineIndex]!);
+        oldLines.push(newLines[newLineIndex]);
+      }
+
+      if (prefix !== "-") {
         newLineIndex++;
       }
     }

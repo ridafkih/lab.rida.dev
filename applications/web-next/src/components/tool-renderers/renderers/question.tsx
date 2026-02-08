@@ -314,7 +314,7 @@ function ActionButtons({ callId, questions, isSubmitting, onReply, onReject }: A
   );
 }
 
-function QuestionRenderer({ callId, input, status, output, error }: ToolRendererProps) {
+function QuestionRenderer({ callId, input, status, error }: ToolRendererProps) {
   const questionActions = useQuestionActions();
   const questions = getArray<QuestionInfo>(input, "questions") ?? [];
 

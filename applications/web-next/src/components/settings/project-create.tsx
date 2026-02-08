@@ -173,7 +173,9 @@ export function ProjectCreate() {
       const sortedContainers = sortContainersByDependencies(containers);
       const draftIdToRealId = new Map<string, string>();
 
-      for (const containerDraft of sortedContainers) {
+      await sortedContainers.reduce(async (previous, containerDraft) => {
+        await previous;
+
         const validDependencies = containerDraft.dependencies
           .filter((dependency) => dependency.dependsOnDraftId)
           .map((dependency) => {
@@ -197,7 +199,7 @@ export function ProjectCreate() {
         if (containerDraft.isWorkspace) {
           await api.containers.setWorkspace(project.id, createdContainer.id, true);
         }
-      }
+      }, Promise.resolve());
 
       await mutate("projects");
       router.push("/settings/projects");

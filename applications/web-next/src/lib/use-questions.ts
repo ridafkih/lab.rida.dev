@@ -28,8 +28,6 @@ export function useQuestions(labSessionId: string): UseQuestionsResult {
       if (response.error) {
         throw new Error(`Failed to reply to question: ${JSON.stringify(response.error)}`);
       }
-    } catch (replyError) {
-      throw replyError;
     } finally {
       setIsSubmitting(false);
     }
@@ -49,8 +47,6 @@ export function useQuestions(labSessionId: string): UseQuestionsResult {
       if (response.error) {
         throw new Error(`Failed to reject question: ${JSON.stringify(response.error)}`);
       }
-    } catch (rejectError) {
-      throw rejectError;
     } finally {
       setIsSubmitting(false);
     }

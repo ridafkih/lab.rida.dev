@@ -317,7 +317,9 @@ export function useAgent(labSessionId: string): UseAgentResult {
         const base = previous ?? sessionDataRef.current?.messages ?? [];
         return base.map((message) => {
           if (message.id !== part.messageID) return message;
-          return { ...message, parts: sortPartsById(upsertPart(message.parts, part)) };
+          return Object.assign({}, message, {
+            parts: sortPartsById(upsertPart(message.parts, part)),
+          });
         });
       });
     };

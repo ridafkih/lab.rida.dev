@@ -45,7 +45,7 @@ function FormInputPassword({
     <div className="relative">
       <input
         type={visible ? "text" : "password"}
-        className={input({ className: "pr-7" })}
+        className={input({ className: cn("pr-7", className) })}
         {...props}
       />
       <button
@@ -130,7 +130,7 @@ function FormInputTextarea({
   rows = 3,
   ...props
 }: TextareaHTMLAttributes<HTMLTextAreaElement> & { rows?: number }) {
-  return <textarea rows={3} className={cn(input(), "resize-none", className)} {...props} />;
+  return <textarea rows={rows} className={cn(input(), "resize-none", className)} {...props} />;
 }
 
 function FormInputHelper({ children }: { children: ReactNode }) {

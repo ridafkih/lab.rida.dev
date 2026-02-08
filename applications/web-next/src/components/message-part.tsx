@@ -132,16 +132,6 @@ const actionRow = tv({
   base: "flex items-center gap-2 px-4 py-2 text-sm",
 });
 
-const stripedBackground = {
-  background: `repeating-linear-gradient(
-    -45deg,
-    transparent,
-    transparent 4px,
-    var(--color-border) 4px,
-    var(--color-border) 5px
-  )`,
-};
-
 const toolStatus = tv({
   base: "",
   variants: {
@@ -377,11 +367,11 @@ const metaRow = tv({
   base: "flex items-center gap-3 px-4 py-1.5 text-xs text-text-muted",
 });
 
-function MessagePartStepStart({}: { part: StepStartPart }) {
+function MessagePartStepStart() {
   return null;
 }
 
-function MessagePartStepFinish({}: { part: StepFinishPart }) {
+function MessagePartStepFinish() {
   return null;
 }
 
@@ -394,7 +384,7 @@ const MessagePartSnapshot = memo(function MessagePartSnapshot({ part }: { part: 
   );
 });
 
-function MessagePartPatch({}: { part: PatchPart }) {
+function MessagePartPatch() {
   return (
     <div className={metaRow()} data-opencode-component="Patch">
       <span>Patch applied</span>
@@ -402,7 +392,7 @@ function MessagePartPatch({}: { part: PatchPart }) {
   );
 }
 
-function MessagePartAgent({}: { part: AgentPart }) {
+function MessagePartAgent() {
   return (
     <div className={actionRow()} data-opencode-component="Agent">
       <Loader2 size={14} className="text-text-muted animate-spin" />
@@ -422,7 +412,7 @@ function MessagePartSubtask({ part }: { part: SubtaskPart }) {
   );
 }
 
-function MessagePartRetry({ part }: { part: RetryPart }) {
+function MessagePartRetry() {
   return (
     <div className={cn(actionRow(), "text-yellow-500")} data-opencode-component="Retry">
       <Loader2 size={14} className="animate-spin" />
@@ -431,7 +421,7 @@ function MessagePartRetry({ part }: { part: RetryPart }) {
   );
 }
 
-function MessagePartCompaction({ part }: { part: CompactionPart }) {
+function MessagePartCompaction() {
   return (
     <div className={metaRow()} data-opencode-component="Compaction">
       <span>Context compacted</span>
