@@ -210,7 +210,7 @@ export class MultiplayerClient {
         }
       }
     } catch (error) {
-      logger.warn({
+      logger.error({
         event_name: "multiplayer.malformed_message",
         error: error instanceof Error ? error.message : String(error),
       });

@@ -1,4 +1,4 @@
-import { logger } from "../logging";
+import { widelog } from "../logging";
 import { multiplayerClient } from "../clients/multiplayer";
 import { apiClient } from "../clients/api";
 import { getAdapter } from "../platforms";
@@ -23,10 +23,6 @@ class CompletionListener {
     });
 
     this.unsubscribers.set(sessionId, unsubscribe);
-    logger.info({
-      event_name: "completion_listener.subscribed",
-      session_id: sessionId,
-    });
   }
 
   unsubscribeFromSession(sessionId: string): void {
@@ -34,94 +30,76 @@ class CompletionListener {
     if (unsubscribe) {
       unsubscribe();
       this.unsubscribers.delete(sessionId);
-      logger.info({
-        event_name: "completion_listener.unsubscribed",
-        session_id: sessionId,
-      });
     }
   }
 
   private async handleSessionComplete(event: SessionCompleteEvent): Promise<void> {
     const { sessionId } = event;
 
-    if (this.processingSet.has(sessionId)) {
-      logger.info({
-        event_name: "completion_listener.already_processing",
-        session_id: sessionId,
-      });
-      return;
-    }
+    if (this.processingSet.has(sessionId)) return;
 
     this.processingSet.add(sessionId);
 
-    try {
-      logger.info({
-        event_name: "completion_listener.processing",
-        session_id: sessionId,
-      });
+    return widelog.context(async () => {
+      widelog.set("event_name", "completion_listener.session_completed");
+      widelog.set("session_id", sessionId);
+      widelog.time.start("duration_ms");
 
-      const subscriptions = responseSubscriber.getActiveSubscriptions();
-      const subscription = subscriptions.get(sessionId);
+      try {
+        const subscriptions = responseSubscriber.getActiveSubscriptions();
+        const subscription = subscriptions.get(sessionId);
 
-      if (!subscription) {
-        logger.info({
-          event_name: "completion_listener.no_subscription",
-          session_id: sessionId,
+        if (!subscription) {
+          widelog.set("outcome", "skipped");
+          widelog.set("skip_reason", "no_subscription");
+          return;
+        }
+
+        const { platform, chatId } = subscription;
+        widelog.set("platform", platform);
+        widelog.set("chat_id", chatId);
+
+        const result = await apiClient.notifySessionComplete({
+          sessionId,
+          platformOrigin: platform,
+          platformChatId: chatId,
         });
-        return;
+
+        const adapter = getAdapter(platform);
+        if (!adapter) {
+          widelog.set("outcome", "error");
+          widelog.set("skip_reason", "no_adapter");
+          return;
+        }
+
+        const threadId = responseSubscriber.getThreadId(sessionId);
+        const messagesToSend = [result.message];
+
+        for (let i = 0; i < messagesToSend.length; i++) {
+          const content = messagesToSend[i]!;
+          const isLastMessage = i === messagesToSend.length - 1;
+
+          await adapter.sendMessage({
+            platform,
+            chatId,
+            content,
+            threadId,
+            attachments: isLastMessage ? result.attachments : undefined,
+          });
+        }
+
+        widelog.set("messages_sent", messagesToSend.length);
+        widelog.set("attachment_count", result.attachments?.length ?? 0);
+        widelog.set("outcome", "success");
+      } catch (error) {
+        widelog.set("outcome", "error");
+        widelog.errorFields(error);
+      } finally {
+        widelog.time.stop("duration_ms");
+        widelog.flush();
+        this.processingSet.delete(sessionId);
       }
-
-      const { platform, chatId } = subscription;
-
-      const result = await apiClient.notifySessionComplete({
-        sessionId,
-        platformOrigin: platform,
-        platformChatId: chatId,
-      });
-
-      const adapter = getAdapter(platform);
-      if (!adapter) {
-        logger.warn({
-          event_name: "completion_listener.no_adapter",
-          platform,
-        });
-        return;
-      }
-
-      const threadId = responseSubscriber.getThreadId(sessionId);
-
-      const messagesToSend = [result.message];
-
-      for (let i = 0; i < messagesToSend.length; i++) {
-        const content = messagesToSend[i]!;
-        // Only include attachments on the last message
-        const isLastMessage = i === messagesToSend.length - 1;
-
-        await adapter.sendMessage({
-          platform,
-          chatId,
-          content,
-          threadId,
-          attachments: isLastMessage ? result.attachments : undefined,
-        });
-      }
-
-      logger.info({
-        event_name: "completion_listener.messages_sent",
-        platform,
-        chat_id: chatId,
-        message_count: messagesToSend.length,
-        attachment_count: result.attachments?.length ?? 0,
-      });
-    } catch (error) {
-      logger.error({
-        event_name: "completion_listener.processing_error",
-        session_id: sessionId,
-        error: error instanceof Error ? error.message : String(error),
-      });
-    } finally {
-      this.processingSet.delete(sessionId);
-    }
+    });
   }
 }
 

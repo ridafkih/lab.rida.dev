@@ -1,4 +1,4 @@
-import { logger } from "../logging";
+import { widelog } from "../logging";
 import { multiplayerClient } from "../clients/multiplayer";
 import { completionListener } from "./completion-listener";
 import { getAdapter } from "../platforms";
@@ -39,15 +39,6 @@ export class ResponseSubscriber {
     if (messagingMode === "passive") {
       completionListener.subscribeToSession(sessionId);
     }
-
-    logger.info({
-      event_name: "response_subscriber.subscribed",
-      session_id: sessionId,
-      platform,
-      chat_id: chatId,
-      messaging_mode: messagingMode,
-      thread_id: threadId ?? "none",
-    });
   }
 
   unsubscribeFromSession(sessionId: string): void {
@@ -58,10 +49,6 @@ export class ResponseSubscriber {
         completionListener.unsubscribeFromSession(sessionId);
       }
       this.subscriptions.delete(sessionId);
-      logger.info({
-        event_name: "response_subscriber.unsubscribed",
-        session_id: sessionId,
-      });
     }
   }
 
@@ -71,41 +58,43 @@ export class ResponseSubscriber {
     const subscription = this.subscriptions.get(sessionId);
     if (!subscription) return;
 
-    if (subscription.messagingMode === "passive") {
-      logger.info({
-        event_name: "response_subscriber.skipping_passive",
-        session_id: sessionId,
-      });
-      return;
-    }
+    return widelog.context(async () => {
+      widelog.set("event_name", "response_subscriber.message_handled");
+      widelog.set("session_id", sessionId);
+      widelog.set("platform", subscription.platform);
+      widelog.set("chat_id", subscription.chatId);
 
-    const adapter = getAdapter(subscription.platform);
-    if (!adapter) {
-      logger.warn({
-        event_name: "response_subscriber.no_adapter",
-        platform: subscription.platform,
-      });
-      return;
-    }
+      try {
+        if (subscription.messagingMode === "passive") {
+          widelog.set("action", "skipped_passive");
+          widelog.set("outcome", "success");
+          return;
+        }
 
-    try {
-      await adapter.sendMessage({
-        platform: subscription.platform,
-        chatId: subscription.chatId,
-        content: message.content,
-        threadId: subscription.threadId,
-      });
-      logger.info({
-        event_name: "response_subscriber.response_sent",
-        platform: subscription.platform,
-        chat_id: subscription.chatId,
-      });
-    } catch (error) {
-      logger.error({
-        event_name: "response_subscriber.send_failed",
-        error: error instanceof Error ? error.message : String(error),
-      });
-    }
+        const adapter = getAdapter(subscription.platform);
+        if (!adapter) {
+          widelog.set("action", "no_adapter");
+          widelog.set("outcome", "error");
+          return;
+        }
+
+        await adapter.sendMessage({
+          platform: subscription.platform,
+          chatId: subscription.chatId,
+          content: message.content,
+          threadId: subscription.threadId,
+        });
+
+        widelog.set("action", "sent");
+        widelog.set("outcome", "success");
+      } catch (error) {
+        widelog.set("action", "send_failed");
+        widelog.set("outcome", "error");
+        widelog.errorFields(error);
+      } finally {
+        widelog.flush();
+      }
+    });
   }
 
   getActiveSubscriptions(): Map<string, { platform: PlatformType; chatId: string }> {
@@ -121,11 +110,10 @@ export class ResponseSubscriber {
   }
 
   unsubscribeAll(): void {
-    for (const [sessionId, subscription] of this.subscriptions) {
+    for (const [, subscription] of this.subscriptions) {
       subscription.unsubscribe();
     }
     this.subscriptions.clear();
-    logger.info({ event_name: "response_subscriber.unsubscribed_all" });
   }
 }
 

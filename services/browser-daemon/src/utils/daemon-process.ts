@@ -84,6 +84,16 @@ export function spawnDaemon(options: SpawnOptions): DaemonWorkerHandle {
       return;
     }
 
+    if (event.data.type === "log") {
+      const { level, ...logData } = event.data.data as { level: string; [key: string]: unknown };
+      if (level === "error") {
+        logger.error(logData);
+      } else {
+        logger.info(logData);
+      }
+      return;
+    }
+
     if (event.data.type === "commandResponse") {
       const data = event.data.data as { requestId: string; response: Response } | undefined;
       if (data?.requestId) {
@@ -177,7 +187,7 @@ export function killByPidFile(sessionId: string): boolean {
     if (isNaN(pid)) return false;
 
     if (pid === process.pid || pid === process.ppid) {
-      logger.warn({ event_name: "daemon.refused_self_kill", session_id: sessionId, pid });
+      logger.error({ event_name: "daemon.refused_self_kill", session_id: sessionId, pid });
       cleanupSocket(sessionId);
       return false;
     }
@@ -193,7 +203,7 @@ export function killByPidFile(sessionId: string): boolean {
     cleanupSocket(sessionId);
     return true;
   } catch (error) {
-    logger.warn({
+    logger.error({
       event_name: "daemon.kill_failed",
       session_id: sessionId,
       error_message: getErrorMessage(error),

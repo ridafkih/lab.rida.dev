@@ -24,7 +24,7 @@ import type { SessionCleanupService } from "../services/session-cleanup.service"
 import type { Sandbox, Publisher } from "../types/dependencies";
 import type { ProxyManager } from "../services/proxy.service";
 import { InternalError } from "../shared/errors";
-import { logger } from "../logging";
+import { widelog } from "../logging";
 
 interface ClusterContainer {
   containerId: string;
@@ -57,13 +57,6 @@ async function createAndStartContainer(
     ports,
   );
 
-  logger.info({
-    event_name: "runtime.container.create_started",
-    session_id: sessionId,
-    project_id: projectId,
-    container_id: containerDefinition.id,
-    image: containerDefinition.image,
-  });
   const { runtimeId } = await sandbox.runtime.startContainer({
     sessionId,
     projectId,
@@ -75,13 +68,6 @@ async function createAndStartContainer(
     env: Object.keys(env).length > 0 ? env : undefined,
     ports: ports.map(({ port }) => port),
     aliases: networkAliases,
-  });
-  logger.info({
-    event_name: "runtime.container.create_completed",
-    session_id: sessionId,
-    project_id: projectId,
-    runtime_id: runtimeId,
-    container_id: containerDefinition.id,
   });
 
   await updateSessionContainerRuntimeId(sessionId, containerDefinition.id, runtimeId);
@@ -143,71 +129,72 @@ export async function initializeSessionContainers(
   browserService: BrowserService,
   deps: InitializeSessionContainersDeps,
 ): Promise<void> {
-  const { sandbox, proxyManager, cleanupService } = deps;
+  return widelog.context(async () => {
+    widelog.set("event_name", "runtime.session_initialization.completed");
+    widelog.set("session_id", sessionId);
+    widelog.set("project_id", projectId);
+    widelog.time.start("duration_ms");
 
-  const containerDefinitions = await findContainersWithDependencies(projectId);
-  const runtimeIds: string[] = [];
-  const clusterContainers: ClusterContainer[] = [];
+    const { sandbox, proxyManager, cleanupService } = deps;
+    const containerDefinitions = await findContainersWithDependencies(projectId);
+    const runtimeIds: string[] = [];
+    const clusterContainers: ClusterContainer[] = [];
 
-  try {
-    const containerNodes = buildContainerNodes(containerDefinitions);
-    const startLevels = resolveStartOrder(containerNodes);
+    try {
+      const containerNodes = buildContainerNodes(containerDefinitions);
+      const startLevels = resolveStartOrder(containerNodes);
 
-    const networkId = await createSessionNetwork(sessionId, sandbox);
+      const networkId = await createSessionNetwork(sessionId, sandbox);
 
-    const preparedContainers = await Promise.all(
-      containerDefinitions.map((definition) =>
-        prepareContainerData(sessionId, definition, sandbox),
-      ),
-    );
-
-    const preparedByContainerId = new Map<string, PreparedContainer>();
-    for (const prepared of preparedContainers) {
-      preparedByContainerId.set(prepared.containerDefinition.id, prepared);
-    }
-
-    for (const level of startLevels) {
-      const levelResult = await startContainersInLevel(
-        sessionId,
-        projectId,
-        networkId,
-        level.containerIds,
-        preparedByContainerId,
-        deps,
+      const preparedContainers = await Promise.all(
+        containerDefinitions.map((definition) =>
+          prepareContainerData(sessionId, definition, sandbox),
+        ),
       );
-      runtimeIds.push(...levelResult.runtimeIds);
-      clusterContainers.push(...levelResult.clusterContainers);
-    }
 
-    if (clusterContainers.length > 0) {
-      await proxyManager.registerCluster(sessionId, clusterContainers);
-    }
+      const preparedByContainerId = new Map<string, PreparedContainer>();
+      for (const prepared of preparedContainers) {
+        preparedByContainerId.set(prepared.containerDefinition.id, prepared);
+      }
 
-    const session = await findSessionById(sessionId);
-    if (!session || session.status === SESSION_STATUS.DELETING) {
-      logger.info({
-        event_name: "runtime.session_initialization.session_deleted_during_setup",
-        session_id: sessionId,
-      });
-      await cleanupService.cleanupOrphanedResources(sessionId, runtimeIds, browserService);
-      return;
+      for (const level of startLevels) {
+        const levelResult = await startContainersInLevel(
+          sessionId,
+          projectId,
+          networkId,
+          level.containerIds,
+          preparedByContainerId,
+          deps,
+        );
+        runtimeIds.push(...levelResult.runtimeIds);
+        clusterContainers.push(...levelResult.clusterContainers);
+      }
+
+      if (clusterContainers.length > 0) {
+        await proxyManager.registerCluster(sessionId, clusterContainers);
+      }
+
+      const session = await findSessionById(sessionId);
+      if (!session || session.status === SESSION_STATUS.DELETING) {
+        widelog.set("outcome", "deleted_during_setup");
+        await cleanupService.cleanupOrphanedResources(sessionId, runtimeIds, browserService);
+        return;
+      }
+
+      widelog.set("outcome", "success");
+    } catch (error) {
+      widelog.set("outcome", "error");
+      widelog.errorFields(error);
+      if (error instanceof CircularDependencyError) {
+        widelog.set("circular_dependency", (error as CircularDependencyError).cycle.join(" -> "));
+      }
+      await handleInitializationError(sessionId, projectId, runtimeIds, browserService, deps);
+    } finally {
+      widelog.set("containers_created", runtimeIds.length);
+      widelog.time.stop("duration_ms");
+      widelog.flush();
     }
-  } catch (error) {
-    if (error instanceof CircularDependencyError) {
-      logger.error({
-        event_name: "runtime.session_initialization.circular_dependency",
-        project_id: projectId,
-        cycle: error.cycle,
-      });
-    }
-    logger.error({
-      event_name: "runtime.session_initialization.failed",
-      session_id: sessionId,
-      project_id: projectId,
-      error,
-    });
-    await handleInitializationError(sessionId, projectId, runtimeIds, browserService, deps);
-  }
+  });
 }
 
 async function handleInitializationError(

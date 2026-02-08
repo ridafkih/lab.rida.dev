@@ -410,6 +410,7 @@
         "@lab/database": "workspace:*",
         "@lab/entry-point": "workspace:*",
         "@lab/multiplayer-sdk": "workspace:*",
+        "@lab/widelogger": "workspace:*",
         "@photon-ai/imessage-kit": "^1.0.0",
         "arktype": "^2.1.29",
         "drizzle-orm": "^0.38.0",

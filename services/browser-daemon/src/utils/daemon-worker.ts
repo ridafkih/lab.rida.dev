@@ -27,17 +27,36 @@ type BrowserPage = ReturnType<BrowserManager["getPage"]>;
 
 const setupPageEvents = (sessionId: string, page: BrowserPage) => {
   page.on("console", (msg) => {
-    console.log(`[DaemonWorker:${sessionId}] Console ${msg.type()}:`, msg.text());
+    self.postMessage({
+      type: "log",
+      data: {
+        level: "info",
+        event_name: "daemon_worker.console_message",
+        session_id: sessionId,
+        msg_type: msg.type(),
+      },
+    });
     postMessage({ type: "browser:console", data: { level: msg.type(), text: msg.text() } });
   });
 
   page.on("pageerror", (error) => {
-    console.error(`[DaemonWorker:${sessionId}] Page error:`, error.message);
+    self.postMessage({
+      type: "log",
+      data: {
+        level: "error",
+        event_name: "daemon_worker.page_error",
+        session_id: sessionId,
+        error: error.message,
+      },
+    });
     postMessage({ type: "browser:error", data: { message: error.message } });
   });
 
   page.on("request", (request) => {
-    console.log(`[DaemonWorker:${sessionId}] Request:`, request.method(), request.url());
+    self.postMessage({
+      type: "log",
+      data: { level: "info", event_name: "daemon_worker.request", session_id: sessionId },
+    });
     postMessage({
       type: "browser:request",
       data: { method: request.method(), url: request.url() },
@@ -45,7 +64,10 @@ const setupPageEvents = (sessionId: string, page: BrowserPage) => {
   });
 
   page.on("response", (response) => {
-    console.log(`[DaemonWorker:${sessionId}] Response:`, response.status(), response.url());
+    self.postMessage({
+      type: "log",
+      data: { level: "info", event_name: "daemon_worker.response", session_id: sessionId },
+    });
     postMessage({
       type: "browser:response",
       data: { status: response.status(), url: response.url() },
@@ -54,18 +76,32 @@ const setupPageEvents = (sessionId: string, page: BrowserPage) => {
 
   page.on("framenavigated", (frame) => {
     if (frame === page.mainFrame()) {
-      console.log(`[DaemonWorker:${sessionId}] Navigated:`, frame.url());
+      self.postMessage({
+        type: "log",
+        data: {
+          level: "info",
+          event_name: "daemon_worker.navigated",
+          session_id: sessionId,
+          url: frame.url(),
+        },
+      });
       postMessage({ type: "browser:navigated", data: { url: frame.url() } });
     }
   });
 
   page.on("load", () => {
-    console.log(`[DaemonWorker:${sessionId}] Page loaded`);
+    self.postMessage({
+      type: "log",
+      data: { level: "info", event_name: "daemon_worker.page_loaded", session_id: sessionId },
+    });
     postMessage({ type: "browser:loaded" });
   });
 
   page.on("close", () => {
-    console.log(`[DaemonWorker:${sessionId}] Page closed`);
+    self.postMessage({
+      type: "log",
+      data: { level: "info", event_name: "daemon_worker.page_closed", session_id: sessionId },
+    });
     postMessage({ type: "browser:closed" });
   });
 };
@@ -85,13 +121,28 @@ const setupBrowserEvents = (sessionId: string, browser: BrowserManager) => {
   if (playwrightBrowser) {
     for (const context of playwrightBrowser.contexts()) {
       context.on("page", async (newPage) => {
-        console.log(`[DaemonWorker:${sessionId}] New page opened`);
+        self.postMessage({
+          type: "log",
+          data: {
+            level: "info",
+            event_name: "daemon_worker.new_page_opened",
+            session_id: sessionId,
+          },
+        });
         trackPage(newPage);
 
         const pages = browser.getPages();
         const newIndex = pages.indexOf(newPage);
         if (newIndex !== -1 && newIndex !== browser.getActiveIndex()) {
-          console.log(`[DaemonWorker:${sessionId}] Auto-switching to new tab ${newIndex}`);
+          self.postMessage({
+            type: "log",
+            data: {
+              level: "info",
+              event_name: "daemon_worker.tab_switched",
+              session_id: sessionId,
+              tab_index: newIndex,
+            },
+          });
           await browser.switchTo(newIndex);
           postMessage({
             type: "browser:tab_switched",
@@ -147,11 +198,27 @@ const createSocketServer = (
   });
 
   server.listen(socketPath, () => {
-    console.log(`[DaemonWorker:${sessionId}] Socket server listening on ${socketPath}`);
+    self.postMessage({
+      type: "log",
+      data: {
+        level: "info",
+        event_name: "daemon_worker.socket_listening",
+        session_id: sessionId,
+        socket_path: socketPath,
+      },
+    });
   });
 
   server.on("error", (err) => {
-    console.error(`[DaemonWorker:${sessionId}] Socket server error:`, err);
+    self.postMessage({
+      type: "log",
+      data: {
+        level: "error",
+        event_name: "daemon_worker.socket_error",
+        session_id: sessionId,
+        error: err instanceof Error ? err.message : String(err),
+      },
+    });
   });
 
   return server;
@@ -164,9 +231,16 @@ const startWorker = async (config: DaemonWorkerConfig) => {
   const streamPortFile = `${socketDir}/${sessionId}.stream`;
   const cdpPortFile = `${socketDir}/${sessionId}.cdp`;
 
-  console.log(
-    `[DaemonWorker:${sessionId}] Starting browser on stream port ${streamPort}, CDP port ${cdpPort}`,
-  );
+  self.postMessage({
+    type: "log",
+    data: {
+      level: "info",
+      event_name: "daemon_worker.starting",
+      session_id: sessionId,
+      stream_port: streamPort,
+      cdp_port: cdpPort,
+    },
+  });
 
   if (!fs.existsSync(socketDir)) {
     fs.mkdirSync(socketDir, { recursive: true });
@@ -187,7 +261,10 @@ const startWorker = async (config: DaemonWorkerConfig) => {
       args: [`--remote-debugging-port=${cdpPort}`],
     });
 
-    console.log(`[DaemonWorker:${sessionId}] Browser launched`);
+    self.postMessage({
+      type: "log",
+      data: { level: "info", event_name: "daemon_worker.browser_launched", session_id: sessionId },
+    });
     setupBrowserEvents(sessionId, state.browser);
 
     state.socketServer = createSocketServer(sessionId, socketPath, state.browser);
@@ -195,12 +272,28 @@ const startWorker = async (config: DaemonWorkerConfig) => {
     state.streamServer = new StreamServer(state.browser, streamPort);
     await state.streamServer.start();
 
-    console.log(`[DaemonWorker:${sessionId}] Stream server started on port ${streamPort}`);
+    self.postMessage({
+      type: "log",
+      data: {
+        level: "info",
+        event_name: "daemon_worker.stream_started",
+        session_id: sessionId,
+        stream_port: streamPort,
+      },
+    });
     postMessage({ type: "daemon:started" });
     postMessage({ type: "daemon:ready", data: { port: streamPort } });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    console.error(`[DaemonWorker:${sessionId}] Failed to start:`, message);
+    self.postMessage({
+      type: "log",
+      data: {
+        level: "error",
+        event_name: "daemon_worker.start_failed",
+        session_id: sessionId,
+        error: message,
+      },
+    });
     postMessage({ type: "daemon:error", error: message });
     process.exit(1);
   }
@@ -215,7 +308,15 @@ const startWorker = async (config: DaemonWorkerConfig) => {
             .getPage()
             .goto(data.url)
             .catch((err: Error) => {
-              console.error(`[DaemonWorker:${sessionId}] Navigation error:`, err.message);
+              self.postMessage({
+                type: "log",
+                data: {
+                  level: "error",
+                  event_name: "daemon_worker.navigation_error",
+                  session_id: sessionId,
+                  error: err.message,
+                },
+              });
             });
         }
         break;
@@ -246,7 +347,10 @@ const startWorker = async (config: DaemonWorkerConfig) => {
       }
 
       case "terminate":
-        console.log(`[DaemonWorker:${sessionId}] Terminating`);
+        self.postMessage({
+          type: "log",
+          data: { level: "info", event_name: "daemon_worker.terminating", session_id: sessionId },
+        });
         state.socketServer?.close();
         state.streamServer?.stop();
         state.browser?.close();
@@ -256,7 +360,15 @@ const startWorker = async (config: DaemonWorkerConfig) => {
           if (fs.existsSync(streamPortFile)) fs.unlinkSync(streamPortFile);
           if (fs.existsSync(cdpPortFile)) fs.unlinkSync(cdpPortFile);
         } catch (error) {
-          console.error("Termination error from daemon-worker.ts", error);
+          self.postMessage({
+            type: "log",
+            data: {
+              level: "error",
+              event_name: "daemon_worker.termination_error",
+              session_id: sessionId,
+              error: error instanceof Error ? error.message : String(error),
+            },
+          });
         }
 
         process.exit(0);

@@ -1,4 +1,3 @@
-import { logger } from "../logging";
 import { CORS, TIMING } from "../config/constants";
 import type { UpstreamInfo } from "../types/proxy";
 
@@ -44,7 +43,6 @@ export async function proxyRequest(
       await new Promise((resolve) => setTimeout(resolve, TIMING.RETRY_DELAY_MS));
       return proxyRequest(request, upstream, retries - 1);
     }
-    logger.error({ event_name: "proxy.upstream_error", target_url: targetUrl, error });
     return new Response("Bad Gateway", { status: 502 });
   }
 }

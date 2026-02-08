@@ -1,4 +1,4 @@
-import { logger } from "../logging";
+import { widelog } from "../logging";
 import { apiClient } from "../clients/api";
 import { sessionTracker } from "./session-tracker";
 import { responseSubscriber } from "./response-subscriber";
@@ -9,13 +9,24 @@ export class MessageRouter {
   async handleIncomingMessage(message: IncomingPlatformMessage): Promise<void> {
     const { platform, chatId, userId, messageId, content, timestamp } = message;
 
-    logger.info({
-      event_name: "message_router.message_received",
-      platform,
-      chat_id: chatId,
-    });
+    return widelog.context(async () => {
+      widelog.set("event_name", "message_router.message_handled");
+      widelog.set("platform", platform);
+      widelog.set("chat_id", chatId);
+      widelog.time.start("duration_ms");
 
-    await this.routeToChatOrchestrator(platform, chatId, userId, messageId, content, timestamp);
+      try {
+        await this.routeToChatOrchestrator(platform, chatId, userId, messageId, content, timestamp);
+        widelog.set("outcome", "success");
+      } catch (error) {
+        widelog.set("outcome", "error");
+        widelog.errorFields(error);
+        throw error;
+      } finally {
+        widelog.time.stop("duration_ms");
+        widelog.flush();
+      }
+    });
   }
 
   private async routeToChatOrchestrator(
@@ -28,8 +39,9 @@ export class MessageRouter {
   ): Promise<void> {
     const adapter = getAdapter(platform);
     const messagingMode: MessagingMode = adapter?.messagingMode ?? "passive";
+    widelog.set("messaging_mode", messagingMode);
 
-    // Use streaming to send chunks immediately as they arrive
+    let chunkCount = 0;
     const result = await apiClient.chatStream(
       {
         content,
@@ -38,14 +50,8 @@ export class MessageRouter {
         timestamp: timestamp.toISOString(),
       },
       async (chunkText) => {
-        // Send each chunk to the platform immediately
         if (adapter) {
-          logger.info({
-            event_name: "message_router.sending_chunk",
-            platform,
-            chat_id: chatId,
-            chunk_preview: chunkText.slice(0, 50),
-          });
+          chunkCount++;
           await adapter.sendMessage({
             platform,
             chatId,
@@ -55,9 +61,14 @@ export class MessageRouter {
       },
     );
 
-    if (result.action === "created_session" && result.sessionId) {
-      await sessionTracker.setMapping(platform, chatId, result.sessionId, userId, messageId);
+    widelog.set("chunk_count", chunkCount);
+    widelog.set("action", result.action);
 
+    if (result.action === "created_session" && result.sessionId) {
+      widelog.set("session_id", result.sessionId);
+      widelog.set("project_name", result.projectName ?? "unknown");
+
+      await sessionTracker.setMapping(platform, chatId, result.sessionId, userId, messageId);
       responseSubscriber.subscribeToSession(
         result.sessionId,
         platform,
@@ -65,31 +76,15 @@ export class MessageRouter {
         messageId,
         messagingMode,
       );
-
-      logger.info({
-        event_name: "message_router.session_created",
-        session_id: result.sessionId,
-        project_name: result.projectName ?? "unknown",
-        messaging_mode: messagingMode,
-      });
     }
 
     if (result.action === "forwarded_message" && result.sessionId) {
+      widelog.set("session_id", result.sessionId);
       await sessionTracker.touchMapping(platform, chatId);
-      logger.info({
-        event_name: "message_router.message_forwarded",
-        session_id: result.sessionId,
-      });
     }
 
-    // Handle attachments from the final result (send separately after all chunks)
     if (adapter && result.attachments?.length) {
-      logger.info({
-        event_name: "message_router.sending_attachments",
-        platform,
-        chat_id: chatId,
-        count: result.attachments.length,
-      });
+      widelog.set("attachment_count", result.attachments.length);
       await adapter.sendMessage({
         platform,
         chatId,

@@ -31,7 +31,7 @@ export class IMessageAdapter implements PlatformAdapter {
 
   async startListening(handler: MessageHandler): Promise<void> {
     if (!this.sdk) {
-      logger.warn({ event_name: "imessage.start_listening_failed_not_initialized" });
+      logger.error({ event_name: "imessage.start_listening_failed_not_initialized" });
       return;
     }
 
@@ -153,7 +153,7 @@ export class IMessageAdapter implements PlatformAdapter {
         try {
           await unlink(filePath);
         } catch {
-          logger.warn({
+          logger.error({
             event_name: "imessage.temp_file_cleanup_failed",
             file_path: filePath,
           });

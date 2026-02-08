@@ -9,7 +9,7 @@ import type { SessionStateStore } from "../state/session-state-store";
 import type { BrowserService } from "../browser/browser-service";
 import type { Sandbox, Publisher } from "../types/dependencies";
 import type { ProxyManager } from "./proxy.service";
-import { logger } from "../logging";
+import { widelog } from "../logging";
 
 interface ContainerCleanupResult {
   runtimeId: string;
@@ -30,50 +30,60 @@ export class SessionCleanupService {
   constructor(private readonly deps: CleanupSessionDeps) {}
 
   async cleanupSessionFull(sessionId: string, browserService: BrowserService): Promise<void> {
-    const { sandbox, publisher, proxyManager, cleanupSessionNetwork } = this.deps;
+    return widelog.context(async () => {
+      widelog.set("event_name", "session_cleanup.completed");
+      widelog.set("session_id", sessionId);
+      widelog.set("cleanup_type", "full");
+      widelog.time.start("duration_ms");
 
-    const session = await findSessionById(sessionId);
-    if (!session) return;
+      const { sandbox, publisher, proxyManager, cleanupSessionNetwork } = this.deps;
 
-    await updateSessionStatus(sessionId, SESSION_STATUS.DELETING);
+      try {
+        const session = await findSessionById(sessionId);
+        if (!session) return;
 
-    publisher.publishDelta("sessions", {
-      type: "remove",
-      session: {
-        id: session.id,
-        projectId: session.projectId,
-        title: session.title,
-      },
+        await updateSessionStatus(sessionId, SESSION_STATUS.DELETING);
+
+        publisher.publishDelta("sessions", {
+          type: "remove",
+          session: {
+            id: session.id,
+            projectId: session.projectId,
+            title: session.title,
+          },
+        });
+
+        const containers = await findSessionContainersBySessionId(sessionId);
+        const runtimeIds = containers.filter((c) => c.runtimeId).map((c) => c.runtimeId);
+
+        await this.stopAndRemoveContainers(runtimeIds, sandbox.provider, sessionId);
+        await browserService.forceStopBrowser(sessionId);
+
+        try {
+          await proxyManager.unregisterCluster(sessionId);
+        } catch (error) {
+          widelog.count("error_count");
+          widelog.set("errors.unregister_proxy_cluster", error instanceof Error ? error.message : String(error));
+        }
+
+        try {
+          await cleanupSessionNetwork(sessionId);
+        } catch (error) {
+          widelog.count("error_count");
+          widelog.set("errors.network_cleanup", error instanceof Error ? error.message : String(error));
+        }
+
+        await deleteSession(sessionId);
+        await this.deps.sessionStateStore.clear(sessionId);
+        widelog.set("outcome", "success");
+      } catch (error) {
+        widelog.set("outcome", "error");
+        widelog.errorFields(error);
+      } finally {
+        widelog.time.stop("duration_ms");
+        widelog.flush();
+      }
     });
-
-    const containers = await findSessionContainersBySessionId(sessionId);
-    const runtimeIds = containers.filter((c) => c.runtimeId).map((c) => c.runtimeId);
-
-    await this.stopAndRemoveContainers(runtimeIds, sandbox.provider, sessionId);
-    await browserService.forceStopBrowser(sessionId);
-
-    try {
-      await proxyManager.unregisterCluster(sessionId);
-    } catch (error) {
-      logger.error({
-        event_name: "session_cleanup.unregister_proxy_cluster_failed",
-        session_id: sessionId,
-        error,
-      });
-    }
-
-    try {
-      await cleanupSessionNetwork(sessionId);
-    } catch (error) {
-      logger.error({
-        event_name: "session_cleanup.network_cleanup_failed",
-        session_id: sessionId,
-        error,
-      });
-    }
-
-    await deleteSession(sessionId);
-    await this.deps.sessionStateStore.clear(sessionId);
   }
 
   async cleanupOrphanedResources(
@@ -81,30 +91,41 @@ export class SessionCleanupService {
     runtimeIds: string[],
     browserService: BrowserService,
   ): Promise<void> {
-    const { sandbox, proxyManager, cleanupSessionNetwork } = this.deps;
+    return widelog.context(async () => {
+      widelog.set("event_name", "session_cleanup.completed");
+      widelog.set("session_id", sessionId);
+      widelog.set("cleanup_type", "orphaned");
+      widelog.time.start("duration_ms");
 
-    await this.stopAndRemoveContainers(runtimeIds, sandbox.provider, sessionId);
-    await browserService.forceStopBrowser(sessionId);
+      const { sandbox, proxyManager, cleanupSessionNetwork } = this.deps;
 
-    try {
-      await proxyManager.unregisterCluster(sessionId);
-    } catch (error) {
-      logger.error({
-        event_name: "session_cleanup.orphaned.unregister_proxy_cluster_failed",
-        session_id: sessionId,
-        error,
-      });
-    }
+      try {
+        await this.stopAndRemoveContainers(runtimeIds, sandbox.provider, sessionId);
+        await browserService.forceStopBrowser(sessionId);
 
-    try {
-      await cleanupSessionNetwork(sessionId);
-    } catch (error) {
-      logger.error({
-        event_name: "session_cleanup.orphaned.network_cleanup_failed",
-        session_id: sessionId,
-        error,
-      });
-    }
+        try {
+          await proxyManager.unregisterCluster(sessionId);
+        } catch (error) {
+          widelog.count("error_count");
+          widelog.set("errors.unregister_proxy_cluster", error instanceof Error ? error.message : String(error));
+        }
+
+        try {
+          await cleanupSessionNetwork(sessionId);
+        } catch (error) {
+          widelog.count("error_count");
+          widelog.set("errors.network_cleanup", error instanceof Error ? error.message : String(error));
+        }
+
+        widelog.set("outcome", "success");
+      } catch (error) {
+        widelog.set("outcome", "error");
+        widelog.errorFields(error);
+      } finally {
+        widelog.time.stop("duration_ms");
+        widelog.flush();
+      }
+    });
   }
 
   async cleanupOnError(
@@ -113,29 +134,42 @@ export class SessionCleanupService {
     runtimeIds: string[],
     browserService: BrowserService,
   ): Promise<void> {
-    const { sandbox, publisher, cleanupSessionNetwork } = this.deps;
+    return widelog.context(async () => {
+      widelog.set("event_name", "session_cleanup.completed");
+      widelog.set("session_id", sessionId);
+      widelog.set("cleanup_type", "error_path");
+      widelog.time.start("duration_ms");
 
-    await updateSessionStatus(sessionId, "error");
+      const { sandbox, publisher, cleanupSessionNetwork } = this.deps;
 
-    publisher.publishDelta("sessions", {
-      type: "remove",
-      session: { id: sessionId, projectId, title: null },
+      try {
+        await updateSessionStatus(sessionId, "error");
+
+        publisher.publishDelta("sessions", {
+          type: "remove",
+          session: { id: sessionId, projectId, title: null },
+        });
+
+        await this.stopAndRemoveContainers(runtimeIds, sandbox.provider, sessionId);
+        await browserService.forceStopBrowser(sessionId);
+
+        try {
+          await cleanupSessionNetwork(sessionId);
+        } catch (error) {
+          widelog.count("error_count");
+          widelog.set("errors.network_cleanup", error instanceof Error ? error.message : String(error));
+        }
+
+        await deleteSession(sessionId);
+        widelog.set("outcome", "success");
+      } catch (error) {
+        widelog.set("outcome", "error");
+        widelog.errorFields(error);
+      } finally {
+        widelog.time.stop("duration_ms");
+        widelog.flush();
+      }
     });
-
-    await this.stopAndRemoveContainers(runtimeIds, sandbox.provider, sessionId);
-    await browserService.forceStopBrowser(sessionId);
-
-    try {
-      await cleanupSessionNetwork(sessionId);
-    } catch (error) {
-      logger.error({
-        event_name: "session_cleanup.error_path.network_cleanup_failed",
-        session_id: sessionId,
-        error,
-      });
-    }
-
-    await deleteSession(sessionId);
   }
 
   private async stopAndRemoveContainers(
@@ -163,26 +197,12 @@ export class SessionCleanupService {
       )
       .map((result) => result.value);
 
-    this.logContainerCleanupFailures(fulfilledResults, sessionId);
-  }
-
-  private logContainerCleanupFailures(results: ContainerCleanupResult[], sessionId: string): void {
-    const failures = results.filter((result) => !result.success);
-
-    for (const failure of failures) {
+    for (const failure of fulfilledResults.filter((r) => !r.success)) {
+      widelog.count("error_count");
       if (failure.error) {
-        logger.error({
-          event_name: "session_cleanup.container_cleanup_failed",
-          session_id: sessionId,
-          runtime_id: failure.runtimeId,
-          error: failure.error,
-        });
+        widelog.set(`errors.container_cleanup.${failure.runtimeId}`, failure.error instanceof Error ? failure.error.message : String(failure.error));
       } else if (failure.stillExists) {
-        logger.error({
-          event_name: "session_cleanup.container_still_exists_after_cleanup",
-          session_id: sessionId,
-          runtime_id: failure.runtimeId,
-        });
+        widelog.set(`errors.container_still_exists.${failure.runtimeId}`, "container still exists after stop and remove");
       }
     }
   }

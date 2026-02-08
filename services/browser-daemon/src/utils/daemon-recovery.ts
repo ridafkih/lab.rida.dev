@@ -1,8 +1,7 @@
 import { isDaemonRunning, cleanupSocket, getSocketDir, getStreamPortFile } from "agent-browser";
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import type { DaemonSession } from "../types/daemon";
-import { logger } from "../logging";
-import { getErrorMessage } from "../shared/errors";
+import { widelog } from "../logging";
 
 export interface RecoveryCallbacks {
   onRecover: (sessionId: string, streamPort: number, cdpPort?: number) => void;
@@ -16,67 +15,59 @@ export function recoverSession(
   sessionId: string,
   callbacks: RecoveryCallbacks,
 ): DaemonSession | null {
-  try {
-    const streamPortPath = getStreamPortFile(sessionId);
-    if (!existsSync(streamPortPath)) {
-      logger.debug({
-        event_name: "daemon.recovery_skipped",
-        session_id: sessionId,
-        reason: "no stream port file",
-      });
-      return null;
-    }
+  return widelog.context(() => {
+    widelog.set("event_name", "daemon.session_recovery");
+    widelog.set("session_id", sessionId);
 
-    const streamPort = parseInt(readFileSync(streamPortPath, "utf-8").trim(), 10);
-    if (isNaN(streamPort)) {
-      logger.debug({
-        event_name: "daemon.recovery_skipped",
-        session_id: sessionId,
-        reason: "invalid port in file",
-      });
-      return null;
-    }
-
-    const cdpPortPath = getCdpPortFile(sessionId);
-    let cdpPort: number | undefined;
-    if (existsSync(cdpPortPath)) {
-      const parsed = parseInt(readFileSync(cdpPortPath, "utf-8").trim(), 10);
-      if (!isNaN(parsed)) {
-        cdpPort = parsed;
+    try {
+      const streamPortPath = getStreamPortFile(sessionId);
+      if (!existsSync(streamPortPath)) {
+        widelog.set("outcome", "skipped");
+        widelog.set("skip_reason", "no_stream_port_file");
+        return null;
       }
-    }
 
-    if (!isDaemonRunning(sessionId)) {
-      logger.debug({
-        event_name: "daemon.recovery_skipped",
-        session_id: sessionId,
-        reason: "daemon not running",
-      });
-      cleanupSocket(sessionId);
+      const streamPort = parseInt(readFileSync(streamPortPath, "utf-8").trim(), 10);
+      if (isNaN(streamPort)) {
+        widelog.set("outcome", "skipped");
+        widelog.set("skip_reason", "invalid_port_in_file");
+        return null;
+      }
+
+      const cdpPortPath = getCdpPortFile(sessionId);
+      let cdpPort: number | undefined;
+      if (existsSync(cdpPortPath)) {
+        const parsed = parseInt(readFileSync(cdpPortPath, "utf-8").trim(), 10);
+        if (!isNaN(parsed)) {
+          cdpPort = parsed;
+        }
+      }
+
+      if (!isDaemonRunning(sessionId)) {
+        widelog.set("outcome", "skipped");
+        widelog.set("skip_reason", "daemon_not_running");
+        cleanupSocket(sessionId);
+        return null;
+      }
+
+      callbacks.onRecover(sessionId, streamPort, cdpPort);
+      widelog.set("outcome", "recovered");
+      widelog.set("stream_port", streamPort);
+      widelog.set("cdp_port", cdpPort ?? 0);
+      return {
+        sessionId,
+        port: streamPort,
+        cdpPort: cdpPort ?? 0,
+        ready: isDaemonRunning(sessionId),
+      };
+    } catch (error) {
+      widelog.set("outcome", "error");
+      widelog.errorFields(error);
       return null;
+    } finally {
+      widelog.flush();
     }
-
-    callbacks.onRecover(sessionId, streamPort, cdpPort);
-    logger.info({
-      event_name: "daemon.session_recovered",
-      session_id: sessionId,
-      stream_port: streamPort,
-      cdp_port: cdpPort,
-    });
-    return {
-      sessionId,
-      port: streamPort,
-      cdpPort: cdpPort ?? 0,
-      ready: isDaemonRunning(sessionId),
-    };
-  } catch (error) {
-    logger.warn({
-      event_name: "daemon.recovery_failed",
-      session_id: sessionId,
-      error_message: getErrorMessage(error),
-    });
-    return null;
-  }
+  }) as DaemonSession | null;
 }
 
 export function discoverExistingSessions(callbacks: RecoveryCallbacks): void {

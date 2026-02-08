@@ -2,7 +2,7 @@ import type { ContainerEvent } from "@lab/sandbox-sdk";
 import { TIMING } from "../config/constants";
 import { ensureSharedContainerConnectedToActiveSessions } from "../runtime/network";
 import type { Sandbox } from "../types/dependencies";
-import { logger } from "../logging";
+import { logger, widelog } from "../logging";
 
 function calculateNextRetryDelay(currentDelay: number): number {
   return Math.min(currentDelay * 2, TIMING.CONTAINER_MONITOR_MAX_RETRY_MS);
@@ -32,7 +32,7 @@ export class NetworkReconcileMonitor {
       watched_containers: Array.from(this.watchedContainerNames),
     });
 
-    await this.ensureAllWatchedContainersConnected();
+    await this.reconcileAllWatchedContainers("startup");
     this.runMonitorLoop();
   }
 
@@ -40,10 +40,43 @@ export class NetworkReconcileMonitor {
     this.abortController.abort();
   }
 
-  private async ensureAllWatchedContainersConnected(): Promise<void> {
-    for (const containerName of this.watchedContainerNames) {
-      await this.ensureContainerConnectedToActiveSessions(containerName, "startup");
-    }
+  private async reconcileAllWatchedContainers(
+    reason: "startup" | "start" | "restart",
+  ): Promise<void> {
+    return widelog.context(async () => {
+      widelog.set("event_name", "network_reconcile_monitor.reconciliation_cycle.completed");
+      widelog.set("reason", reason);
+      widelog.time.start("duration_ms");
+
+      let sessionsChecked = 0;
+      let containersConnected = 0;
+
+      try {
+        for (const containerName of this.watchedContainerNames) {
+          try {
+            const result = await ensureSharedContainerConnectedToActiveSessions(
+              containerName,
+              this.sandbox,
+            );
+            sessionsChecked += result.checked;
+            containersConnected += result.connected;
+          } catch (error) {
+            widelog.count("error_count");
+            widelog.set(`errors.${containerName}`, error instanceof Error ? error.message : String(error));
+          }
+        }
+
+        widelog.set("outcome", "success");
+      } catch (error) {
+        widelog.set("outcome", "error");
+        widelog.errorFields(error);
+      } finally {
+        widelog.set("sessions_checked", sessionsChecked);
+        widelog.set("containers_connected", containersConnected);
+        widelog.time.stop("duration_ms");
+        widelog.flush();
+      }
+    });
   }
 
   private async runMonitorLoop(): Promise<void> {
@@ -84,33 +117,6 @@ export class NetworkReconcileMonitor {
       return;
     }
 
-    await this.ensureContainerConnectedToActiveSessions(containerName, event.action);
-  }
-
-  private async ensureContainerConnectedToActiveSessions(
-    containerName: string,
-    reason: "startup" | "start" | "restart",
-  ): Promise<void> {
-    try {
-      const result = await ensureSharedContainerConnectedToActiveSessions(
-        containerName,
-        this.sandbox,
-      );
-      logger.info({
-        event_name: "network_reconcile_monitor.container_connectivity_checked",
-        container_name: containerName,
-        reason,
-        checked_count: result.checked,
-        connected_count: result.connected,
-        missing_networks: result.missingNetworks,
-      });
-    } catch (error) {
-      logger.error({
-        event_name: "network_reconcile_monitor.ensure_connectivity_failed",
-        container_name: containerName,
-        reason,
-        error,
-      });
-    }
+    await this.reconcileAllWatchedContainers(event.action);
   }
 }

@@ -1,4 +1,5 @@
 import pino from "pino";
+import { widelogger } from "@lab/widelogger";
 
 const environment = process.env.NODE_ENV ?? "development";
 const isDevelopment = environment !== "production";
@@ -34,3 +35,21 @@ export const logger = pino(
   },
   transport,
 );
+
+const { widelog } = widelogger({
+  transport: (event) => {
+    if (Object.keys(event).length === 0) return;
+
+    const isError = event.outcome === "error";
+    const payload = { event_name: "platform_bridge.operation", ...event };
+
+    if (isError) {
+      logger.error(payload);
+      return;
+    }
+
+    logger.info(payload);
+  },
+});
+
+export { widelog };

@@ -12,7 +12,7 @@ import { createSessionContainer } from "../repositories/container-session.reposi
 import type { BrowserServiceManager } from "./browser-service.manager";
 import type { SessionLifecycleManager } from "./session-lifecycle.manager";
 import type { Session } from "@lab/database/schema/sessions";
-import { logger } from "../logging";
+import { logger, widelog } from "../logging";
 
 interface PoolStats {
   available: number;
@@ -79,58 +79,54 @@ export class PoolManager {
   }
 
   async createPooledSession(projectId: string): Promise<Session | null> {
-    const containerDefinitions = await findContainersByProjectId(projectId);
-    if (containerDefinitions.length === 0) {
-      return null;
-    }
-
-    const session = await createInDb(projectId);
-
-    await Promise.all(
-      containerDefinitions.map((containerDefinition) =>
-        createSessionContainer({
-          sessionId: session.id,
-          containerId: containerDefinition.id,
-          runtimeId: "",
-          status: CONTAINER_STATUS.STARTING,
-        }),
-      ),
-    );
-
-    try {
-      await this.sessionLifecycle.initializeSession(session.id, projectId);
+    return widelog.context(async () => {
+      widelog.set("event_name", "pool_manager.initialize_pooled_session.completed");
+      widelog.set("project_id", projectId);
+      widelog.time.start("duration_ms");
+      let warmed = false;
 
       try {
-        await this.browserService.service.warmUpBrowser(session.id);
-        logger.info({
-          event_name: "pool_manager.pooled_session_created_and_warmed",
-          project_id: projectId,
-          session_id: session.id,
-        });
-      } catch (error) {
-        logger.error({
-          event_name: "pool_manager.warmup_failed",
-          project_id: projectId,
-          session_id: session.id,
-          error,
-        });
-        logger.info({
-          event_name: "pool_manager.pooled_session_created_without_warmup",
-          project_id: projectId,
-          session_id: session.id,
-        });
-      }
+        const containerDefinitions = await findContainersByProjectId(projectId);
+        if (containerDefinitions.length === 0) {
+          return null;
+        }
 
-      return session;
-    } catch (error) {
-      logger.error({
-        event_name: "pool_manager.initialize_pooled_session_failed",
-        project_id: projectId,
-        session_id: session.id,
-        error,
-      });
-      return null;
-    }
+        const session = await createInDb(projectId);
+        widelog.set("session_id", session.id);
+
+        await Promise.all(
+          containerDefinitions.map((containerDefinition) =>
+            createSessionContainer({
+              sessionId: session.id,
+              containerId: containerDefinition.id,
+              runtimeId: "",
+              status: CONTAINER_STATUS.STARTING,
+            }),
+          ),
+        );
+
+        await this.sessionLifecycle.initializeSession(session.id, projectId);
+
+        try {
+          await this.browserService.service.warmUpBrowser(session.id);
+          warmed = true;
+        } catch {
+          warmed = false;
+        }
+
+        widelog.set("warmed", warmed);
+        widelog.set("outcome", "success");
+        return session;
+      } catch (error) {
+        widelog.set("warmed", warmed);
+        widelog.set("outcome", "error");
+        widelog.errorFields(error);
+        return null;
+      } finally {
+        widelog.time.stop("duration_ms");
+        widelog.flush();
+      }
+    });
   }
 
   async reconcilePool(projectId: string): Promise<void> {
@@ -188,7 +184,9 @@ export class PoolManager {
     });
     this.reconcileAllPools().catch((error) =>
       logger.error({
-        event_name: "pool_manager.initial_reconciliation_failed",
+        event_name: "pool_manager.initialize",
+        target_size: this.getTargetPoolSize(),
+        initial_reconciliation_failed: true,
         error,
       }),
     );
@@ -207,12 +205,6 @@ export class PoolManager {
         TIMING.POOL_BACKOFF_BASE_MS,
         TIMING.POOL_BACKOFF_MAX_MS,
       );
-      logger.error({
-        event_name: "pool_manager.fill_creation_failed",
-        project_id: projectId,
-        attempt: failures,
-        backoff_ms: delay,
-      });
       await new Promise((resolve) => setTimeout(resolve, delay));
       return failures;
     }
@@ -222,22 +214,12 @@ export class PoolManager {
   /**
    * Removes excess pooled sessions beyond the target size.
    */
-  private async drainExcess(projectId: string, excess: number): Promise<void> {
-    logger.info({
-      event_name: "pool_manager.drain_excess_start",
-      project_id: projectId,
-      excess_count: excess,
-    });
-
+  private async drainExcess(projectId: string, excess: number): Promise<number> {
     const sessionsToRemove = await findPooledSessions(projectId, excess);
     for (const session of sessionsToRemove) {
       await this.sessionLifecycle.cleanupSession(session.id);
-      logger.info({
-        event_name: "pool_manager.drain_excess_removed_session",
-        project_id: projectId,
-        session_id: session.id,
-      });
     }
+    return sessionsToRemove.length;
   }
 
   /**
@@ -246,38 +228,59 @@ export class PoolManager {
    * Protected by a per-project lock in reconcilePool() to prevent concurrent reconciliation.
    */
   private async doReconcile(projectId: string): Promise<void> {
-    const targetSize = this.getTargetPoolSize();
-    const maxIterations = Math.max(10, targetSize * 2);
-    let consecutiveFailures = 0;
-    let settled = false;
+    return widelog.context(async () => {
+      widelog.set("event_name", "pool_manager.reconcile_pool.completed");
+      widelog.set("project_id", projectId);
+      widelog.time.start("duration_ms");
 
-    for (let i = 0; i < maxIterations; i++) {
-      const currentCount = await countPooledSessions(projectId);
+      const targetSize = this.getTargetPoolSize();
+      widelog.set("target_size", targetSize);
+      const maxIterations = Math.max(10, targetSize * 2);
+      let consecutiveFailures = 0;
+      let settled = false;
+      let sessionsCreated = 0;
+      let sessionsDrained = 0;
+      let currentSize = 0;
 
-      if (currentCount === targetSize) {
-        settled = true;
-        break;
+      try {
+        for (let i = 0; i < maxIterations; i++) {
+          currentSize = await countPooledSessions(projectId);
+
+          if (currentSize === targetSize) {
+            settled = true;
+            break;
+          }
+
+          if (currentSize < targetSize) {
+            consecutiveFailures = await this.fillOne(projectId, consecutiveFailures);
+            if (consecutiveFailures === 0) {
+              sessionsCreated++;
+            } else {
+              widelog.count("error_count");
+              widelog.set(`errors.fill_attempt_${i}`, `creation failed, consecutive_failures=${consecutiveFailures}`);
+            }
+          } else {
+            const drained = await this.drainExcess(projectId, currentSize - targetSize);
+            sessionsDrained += drained;
+          }
+        }
+
+        if (!settled) {
+          widelog.count("error_count");
+          widelog.set("errors.iteration_limit", `reached max_iterations=${maxIterations}`);
+        }
+
+        widelog.set("outcome", settled ? "success" : "completed_with_errors");
+      } catch (error) {
+        widelog.set("outcome", "error");
+        widelog.errorFields(error);
+      } finally {
+        widelog.set("current_size", currentSize);
+        widelog.set("sessions_created", sessionsCreated);
+        widelog.set("sessions_drained", sessionsDrained);
+        widelog.time.stop("duration_ms");
+        widelog.flush();
       }
-
-      if (currentCount < targetSize) {
-        logger.info({
-          event_name: "pool_manager.fill_needed",
-          project_id: projectId,
-          current_count: currentCount,
-          target_size: targetSize,
-        });
-        consecutiveFailures = await this.fillOne(projectId, consecutiveFailures);
-      } else {
-        await this.drainExcess(projectId, currentCount - targetSize);
-      }
-    }
-
-    if (!settled) {
-      logger.error({
-        event_name: "pool_manager.reconcile_iteration_limit_hit",
-        project_id: projectId,
-        max_iterations: maxIterations,
-      });
-    }
+    });
   }
 }

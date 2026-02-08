@@ -162,16 +162,8 @@ export class LogMonitor {
   ) {}
 
   async start(): Promise<void> {
-    logger.info({
-      event_name: "log_monitor.start",
-    });
-
     try {
       const runningContainers = await findAllRunningSessionContainers();
-      logger.info({
-        event_name: "log_monitor.running_containers_scanned",
-        running_container_count: runningContainers.length,
-      });
 
       for (const container of runningContainers) {
         this.onContainerStarted({
@@ -181,9 +173,14 @@ export class LogMonitor {
           hostname: container.hostname,
         });
       }
+
+      logger.info({
+        event_name: "log_monitor.start",
+        running_container_count: runningContainers.length,
+      });
     } catch (error) {
       logger.error({
-        event_name: "log_monitor.running_containers_scan_failed",
+        event_name: "log_monitor.start",
         error,
       });
     }
