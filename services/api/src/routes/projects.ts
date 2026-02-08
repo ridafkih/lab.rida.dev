@@ -1,6 +1,7 @@
 import { findAllProjectsWithContainers, createProject } from "../repositories/project.repository";
 import type { Handler, InfraContext, NoRouteContext } from "../types/route";
 import { parseRequestBody } from "../shared/validation";
+import { widelog } from "../logging";
 import { z } from "zod";
 
 const createProjectSchema = z.object({
@@ -11,6 +12,7 @@ const createProjectSchema = z.object({
 
 const GET: Handler<NoRouteContext> = async () => {
   const projects = await findAllProjectsWithContainers();
+  widelog.set("project.count", projects.length);
   return Response.json(projects);
 };
 
@@ -21,6 +23,8 @@ const POST: Handler<InfraContext> = async (request, _params, ctx) => {
     description: body.description,
     systemPrompt: body.systemPrompt,
   });
+
+  widelog.set("project.id", project.id);
 
   ctx.publisher.publishDelta("projects", {
     type: "add",

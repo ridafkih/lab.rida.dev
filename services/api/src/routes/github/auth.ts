@@ -2,6 +2,7 @@ import type { Handler, GithubContext } from "../../types/route";
 import { createHmac, randomBytes } from "node:crypto";
 import { TIMING } from "../../config/constants";
 import { ConfigurationError } from "../../shared/errors";
+import { widelog } from "../../logging";
 
 function getSigningKey(): string {
   const key = process.env.ENCRYPTION_KEY;
@@ -42,6 +43,8 @@ export function validateState(state: string): boolean {
 }
 
 const GET: Handler<GithubContext> = async (_request, _params, ctx) => {
+  widelog.set("github.action", "auth_redirect");
+
   if (!ctx.githubClientId || !ctx.githubCallbackUrl) {
     throw new ConfigurationError("GitHub OAuth is not configured");
   }

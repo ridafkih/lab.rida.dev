@@ -23,6 +23,8 @@ function redirectToSettings(frontendUrl: string, params: Record<string, string>)
 }
 
 const GET: Handler<GithubContext> = async (request, _params, ctx) => {
+  widelog.set("github.action", "oauth_callback");
+
   if (!ctx.frontendUrl) {
     return Response.json({ error: "FRONTEND_URL is not configured" }, { status: 500 });
   }
@@ -93,6 +95,8 @@ const GET: Handler<GithubContext> = async (request, _params, ctx) => {
       username: userData.login,
     });
 
+    widelog.set("github.oauth_callback_outcome", "success");
+    widelog.set("github.username", userData.login);
     return redirectToSettings(frontendUrl, { connected: "true" });
   } catch (err) {
     widelog.errorFields(err, { prefix: "github.oauth_callback_error" });

@@ -2,13 +2,16 @@ import { getSessionServices } from "../../../../repositories/container-session.r
 import { findSessionByIdOrThrow } from "../../../../repositories/session.repository";
 import { withParams } from "../../../../shared/route-helpers";
 import type { ProxyContext } from "../../../../types/route";
+import { widelog } from "../../../../logging";
 
 const GET = withParams<{ sessionId: string }, ProxyContext>(
   ["sessionId"],
   async ({ sessionId }, _request, ctx) => {
+    widelog.set("session.id", sessionId);
     await findSessionByIdOrThrow(sessionId);
 
     const services = await getSessionServices(sessionId);
+    widelog.set("service.count", services.length);
 
     return Response.json({
       sessionId,

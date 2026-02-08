@@ -3,6 +3,7 @@ import { spawnSession } from "../../../orchestration/session-spawner";
 import { withParams } from "../../../shared/route-helpers";
 import { parseRequestBody } from "../../../shared/validation";
 import type { RouteContextFor } from "../../../types/route";
+import { widelog } from "../../../logging";
 import { z } from "zod";
 
 const createProjectSessionSchema = z.object({
@@ -11,7 +12,9 @@ const createProjectSessionSchema = z.object({
 });
 
 const GET = withParams<{ projectId: string }>(["projectId"], async ({ projectId }, _request) => {
+  widelog.set("project.id", projectId);
   const sessions = await findSessionsByProjectId(projectId);
+  widelog.set("session.count", sessions.length);
   return Response.json(sessions);
 });
 
@@ -20,6 +23,7 @@ type OrchestrationContext = RouteContextFor<"browser" | "session" | "infra" | "p
 const POST = withParams<{ projectId: string }, OrchestrationContext>(
   ["projectId"],
   async ({ projectId }, request, context) => {
+    widelog.set("project.id", projectId);
     const body = await parseRequestBody(request, createProjectSessionSchema);
 
     const result = await spawnSession({
@@ -31,6 +35,9 @@ const POST = withParams<{ projectId: string }, OrchestrationContext>(
       publisher: context.publisher,
       proxyBaseDomain: context.proxyBaseDomain,
     });
+
+    widelog.set("session.id", result.session.id);
+    widelog.set("session.container_count", result.containers.length);
 
     return Response.json(
       {

@@ -5,7 +5,7 @@ import {
   countPooledSessions,
   createPooledSession as createInDb,
   findPooledSessions,
-} from "../repositories/session.repository";
+} from "../repositories/pool.repository";
 import { findAllProjects } from "../repositories/project.repository";
 import { findContainersByProjectId } from "../repositories/container-definition.repository";
 import { createSessionContainer } from "../repositories/container-session.repository";

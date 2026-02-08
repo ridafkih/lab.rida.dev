@@ -7,6 +7,7 @@ import {
 } from "../../../repositories/orchestrator-message.repository";
 import { parseRequestBody } from "../../../shared/validation";
 import { MESSAGE_ROLE } from "../../../types/message";
+import { widelog } from "../../../logging";
 
 const completeRequestSchema = z.object({
   sessionId: z.string(),
@@ -21,6 +22,10 @@ const POST: Handler<OrchestrationContext> = async (request, _params, context) =>
     request,
     completeRequestSchema,
   );
+
+  widelog.set("session.id", sessionId);
+  widelog.set("orchestration.platform_origin", platformOrigin);
+  widelog.set("orchestration.platform_chat_id", platformChatId);
 
   await saveOrchestratorMessage({
     platform: platformOrigin,

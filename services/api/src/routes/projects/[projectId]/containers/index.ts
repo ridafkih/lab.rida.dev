@@ -6,6 +6,7 @@ import {
 import { ValidationError } from "../../../../shared/errors";
 import { withParams } from "../../../../shared/route-helpers";
 import { parseRequestBody } from "../../../../shared/validation";
+import { widelog } from "../../../../logging";
 import { z } from "zod";
 
 interface DependencyInput {
@@ -55,11 +56,14 @@ function extractDependsOnIds(
 }
 
 const GET = withParams<{ projectId: string }>(["projectId"], async ({ projectId }, _request) => {
+  widelog.set("project.id", projectId);
   const containers = await findContainersWithDependencies(projectId);
+  widelog.set("container.count", containers.length);
   return Response.json(containers);
 });
 
 const POST = withParams<{ projectId: string }>(["projectId"], async ({ projectId }, request) => {
+  widelog.set("project.id", projectId);
   const body = await parseRequestBody(request, createContainerSchema);
 
   const normalizedDependencies = normalizeDependencies(body.dependsOn);
@@ -75,6 +79,9 @@ const POST = withParams<{ projectId: string }>(["projectId"], async ({ projectId
   }
 
   const ports = body.ports && body.ports.length > 0 ? body.ports : undefined;
+
+  widelog.set("container.image", body.image);
+  widelog.set("container.dependency_count", normalizedDependencies.length);
 
   const container = await createContainerWithDetails({
     projectId,

@@ -1,5 +1,6 @@
 import type { Handler, InfraContext } from "../types/route";
 import { ExternalServiceError } from "../shared/errors";
+import { widelog } from "../logging";
 
 const GET: Handler<InfraContext> = async (_request, _params, ctx) => {
   const response = await ctx.opencode.provider.list();
@@ -23,6 +24,8 @@ const GET: Handler<InfraContext> = async (_request, _params, ctx) => {
     )
     .sort((left, right) => left.name.localeCompare(right.name));
 
+  widelog.set("model.count", models.length);
+  widelog.set("model.provider_count", connectedSet.size);
   return Response.json({ models });
 };
 

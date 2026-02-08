@@ -6,6 +6,7 @@ import {
 } from "../../repositories/github-settings.repository";
 import { parseRequestBody } from "../../shared/validation";
 import { noContentResponse } from "@lab/http-utilities";
+import { widelog } from "../../logging";
 import { z } from "zod";
 
 const settingsSchema = z.object({
@@ -17,7 +18,9 @@ const settingsSchema = z.object({
 });
 
 const GET: Handler<NoRouteContext> = async () => {
+  widelog.set("github.action", "get_settings");
   const settings = await getGitHubSettings();
+  widelog.set("github.configured", !!settings);
   if (!settings) {
     return Response.json({ configured: false });
   }
@@ -25,6 +28,7 @@ const GET: Handler<NoRouteContext> = async () => {
 };
 
 const POST: Handler<NoRouteContext> = async (request) => {
+  widelog.set("github.action", "save_settings");
   const body = await parseRequestBody(request, settingsSchema);
 
   const settings = await saveGitHubSettings({
@@ -39,6 +43,7 @@ const POST: Handler<NoRouteContext> = async (request) => {
 };
 
 const DELETE: Handler<NoRouteContext> = async () => {
+  widelog.set("github.action", "delete_settings");
   await deleteGitHubSettings();
   return noContentResponse();
 };

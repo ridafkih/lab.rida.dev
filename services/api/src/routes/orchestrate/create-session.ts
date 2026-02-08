@@ -4,6 +4,7 @@ import { findProjectByIdOrThrow } from "../../repositories/project.repository";
 import { spawnSession } from "../../orchestration/session-spawner";
 import { initiateConversation } from "../../orchestration/conversation-initiator";
 import { parseRequestBody } from "../../shared/validation";
+import { widelog } from "../../logging";
 
 const createSessionRequestSchema = z.object({
   projectId: z.string().min(1),
@@ -18,6 +19,10 @@ const POST: Handler<OrchestrationContext> = async (request, _params, context) =>
     request,
     createSessionRequestSchema,
   );
+
+  widelog.set("project.id", projectId);
+  widelog.set("orchestration.has_task", !!taskSummary);
+  widelog.set("orchestration.has_model_id", !!modelId);
 
   const project = await findProjectByIdOrThrow(projectId);
 
@@ -40,6 +45,8 @@ const POST: Handler<OrchestrationContext> = async (request, _params, context) =>
       sessionStateStore: context.sessionStateStore,
     });
   }
+
+  widelog.set("session.id", session.id);
 
   return Response.json(
     {

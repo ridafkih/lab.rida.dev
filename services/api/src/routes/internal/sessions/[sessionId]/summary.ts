@@ -8,6 +8,7 @@ import { parseRequestBody } from "../../../../shared/validation";
 import { ValidationError } from "../../../../shared/errors";
 import { withParams } from "../../../../shared/route-helpers";
 import type { InfraContext } from "../../../../types/route";
+import { widelog } from "../../../../logging";
 
 const summaryRequestSchema = z.object({
   originalTask: z.string().optional(),
@@ -16,9 +17,12 @@ const summaryRequestSchema = z.object({
 const POST = withParams<{ sessionId: string }, InfraContext>(
   ["sessionId"],
   async ({ sessionId }, request, ctx) => {
+    widelog.set("session.id", sessionId);
     const { originalTask } = await parseRequestBody(request, summaryRequestSchema);
 
     const orchestration = await findOrchestrationBySessionIdOrThrow(sessionId);
+    widelog.set("summary.messaging_mode", orchestration.messagingMode ?? "unknown");
+    widelog.set("summary.current_status", orchestration.summaryStatus ?? "none");
 
     if (orchestration.messagingMode !== "passive") {
       throw new ValidationError("Summary generation only available for passive messaging mode");

@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { tool } from "ai";
-import { searchSessions } from "../../services/session.service";
+import { searchSessionsWithProject } from "../../repositories/session.repository";
 import { resolveWorkspacePathBySession } from "../../shared/path-resolver";
 import { isOpencodeMessage, extractTextFromParts } from "../opencode-messages";
 import type { OpencodeClient } from "../../types/dependencies";
@@ -18,7 +18,7 @@ export function createSearchSessionsTool(opencode: OpencodeClient) {
     execute: async ({ query, limit }) => {
       const searchLimit = limit ?? 5;
 
-      const rows = await searchSessions({ query, limit });
+      const rows = await searchSessionsWithProject({ query, limit });
 
       const messagePromises = rows.map(async (row) => {
         if (!row.opencodeSessionId) return null;

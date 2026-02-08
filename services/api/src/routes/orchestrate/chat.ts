@@ -29,6 +29,10 @@ const POST: Handler<OrchestrationContext> = async (request, _params, context) =>
   const body = await parseRequestBody(request, chatRequestSchema);
   const content = body.content.trim();
 
+  widelog.set("orchestration.platform_origin", body.platformOrigin);
+  widelog.set("orchestration.platform_chat_id", body.platformChatId);
+  widelog.set("orchestration.has_model_id", !!body.modelId);
+
   await saveOrchestratorMessage({
     platform: body.platformOrigin,
     platformChatId: body.platformChatId,
@@ -42,7 +46,10 @@ const POST: Handler<OrchestrationContext> = async (request, _params, context) =>
     limit: 20,
   });
 
+  widelog.set("orchestration.history_count", conversationHistory.length);
+
   const platformConfig = getPlatformConfig(body.platformOrigin);
+  widelog.set("orchestration.streaming", platformConfig.breakDoubleNewlines);
 
   if (platformConfig.breakDoubleNewlines) {
     // Return SSE stream for platforms that support chunked delivery

@@ -6,6 +6,7 @@ import {
 import { noContentResponse } from "@lab/http-utilities";
 import { parseRequestBody } from "../../../shared/validation";
 import { withParams } from "../../../shared/route-helpers";
+import { widelog } from "../../../logging";
 import { z } from "zod";
 
 const updateProjectSchema = z.object({
@@ -14,11 +15,13 @@ const updateProjectSchema = z.object({
 });
 
 const GET = withParams<{ projectId: string }>(["projectId"], async ({ projectId }, _request) => {
+  widelog.set("project.id", projectId);
   const project = await findProjectByIdOrThrow(projectId);
   return Response.json(project);
 });
 
 const PATCH = withParams<{ projectId: string }>(["projectId"], async ({ projectId }, request) => {
+  widelog.set("project.id", projectId);
   const body = await parseRequestBody(request, updateProjectSchema);
 
   await findProjectByIdOrThrow(projectId);
@@ -30,6 +33,7 @@ const PATCH = withParams<{ projectId: string }>(["projectId"], async ({ projectI
 });
 
 const DELETE = withParams<{ projectId: string }>(["projectId"], async ({ projectId }, _request) => {
+  widelog.set("project.id", projectId);
   await deleteProject(projectId);
   return noContentResponse();
 });
