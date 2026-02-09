@@ -2,7 +2,6 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
 import { z } from "zod/v4";
 import type { ToolContext, Config } from "../types/tool";
-import { S3 } from "../config/constants";
 import {
   createHierarchicalTool,
   type CommandNode,
@@ -17,7 +16,7 @@ import {
 function createS3Client(config: Config): S3Client {
   return new S3Client({
     endpoint: config.RUSTFS_ENDPOINT,
-    region: S3.REGION,
+    region: config.RUSTFS_REGION,
     credentials: {
       accessKeyId: config.RUSTFS_ACCESS_KEY,
       secretAccessKey: config.RUSTFS_SECRET_KEY,

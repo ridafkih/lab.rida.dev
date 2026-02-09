@@ -67,15 +67,16 @@ services:
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
     environment:
-      MCP_PORT: "3000"
-      API_BASE_URL: "http://api:4000"
-      BROWSER_DAEMON_URL: "http://browser:80"
+      MCP_PORT: $MCP_PORT
+      API_BASE_URL: $MCP_API_BASE_URL
+      BROWSER_DAEMON_URL: $MCP_BROWSER_DAEMON_URL
       BROWSER_CONTAINER_NAME: $BROWSER_CONTAINER_NAME
       RUSTFS_ENDPOINT: $RUSTFS_ENDPOINT
       RUSTFS_ACCESS_KEY: $RUSTFS_ACCESS_KEY
       RUSTFS_SECRET_KEY: $RUSTFS_SECRET_KEY
       RUSTFS_BUCKET: $RUSTFS_BUCKET
       RUSTFS_PUBLIC_URL: $RUSTFS_PUBLIC_URL
+      RUSTFS_REGION: ${RUSTFS_REGION:-us-east-1}
     depends_on:
       browser:
         condition: service_healthy
@@ -143,7 +144,8 @@ services:
       IMAGE_ANALYZER_PROVIDER: $IMAGE_ANALYZER_PROVIDER
       IMAGE_ANALYZER_MODEL: $IMAGE_ANALYZER_MODEL
       IMAGE_ANALYZER_API_KEY: $IMAGE_ANALYZER_API_KEY
-      REDIS_URL: redis://redis:6379
+      REDIS_URL: $REDIS_URL
+      PROXY_PORT: $PROXY_PORT
     depends_on:
       postgres:
         condition: service_started
@@ -214,7 +216,7 @@ services:
       AGENT_BROWSER_SESSION: default
       AGENT_BROWSER_STREAM_PORT: "9223"
       BROWSER_API_PORT: "80"
-      DATABASE_URL: "postgresql://lab:lab@postgres:5432/lab"
+      DATABASE_URL: $DATABASE_URL
     ports:
       - "9223-9300:9223-9300"
     develop:

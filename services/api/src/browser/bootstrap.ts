@@ -4,7 +4,7 @@ import {
   type StateStore,
   createDaemonController,
 } from "@lab/browser-protocol";
-import { TIMING, SERVER } from "../config/constants";
+import { TIMING } from "../config/constants";
 import {
   getFirstExposedPort,
   getFirstExposedService,
@@ -29,6 +29,9 @@ interface BrowserBootstrapConfig {
   cleanupDelayMs: number;
   reconcileIntervalMs: number;
   maxRetries: number;
+  proxyContainerName: string;
+  proxyPort: number;
+  proxyBaseDomain: string;
   publishFrame: (sessionId: string, frame: string, timestamp: number) => void;
   publishStateChange: (sessionId: string, state: BrowserSessionState) => void;
 }
@@ -53,38 +56,40 @@ async function getInitialNavigationUrl(sessionId: string, _port: number): Promis
   return `http://${service.hostname}:${service.port}/`;
 }
 
-async function waitForService(
-  sessionId: string,
-  port: number,
-  timeoutMs = TIMING.SERVICE_WAIT_TIMEOUT_MS,
-  intervalMs = TIMING.SERVICE_WAIT_INTERVAL_MS,
-): Promise<void> {
-  const proxyUrl = `http://lab-proxy:${SERVER.PROXY_PORT}/`;
-  const hostHeader = `${sessionId}--${port}.localhost`;
-  const startTime = Date.now();
-  let lastStatus: number | string = "no response";
+function createWaitForService(config: BrowserBootstrapConfig) {
+  return async function waitForService(
+    sessionId: string,
+    port: number,
+    timeoutMs = TIMING.SERVICE_WAIT_TIMEOUT_MS,
+    intervalMs = TIMING.SERVICE_WAIT_INTERVAL_MS,
+  ): Promise<void> {
+    const proxyUrl = `http://${config.proxyContainerName}:${config.proxyPort}/`;
+    const hostHeader = `${sessionId}--${port}.${config.proxyBaseDomain}`;
+    const startTime = Date.now();
+    let lastStatus: number | string = "no response";
 
-  while (Date.now() - startTime < timeoutMs) {
-    const response = await fetch(proxyUrl, {
-      headers: { Host: hostHeader },
-    }).catch((err) => {
-      lastStatus = `fetch error: ${err.message}`;
-      return null;
-    });
+    while (Date.now() - startTime < timeoutMs) {
+      const response = await fetch(proxyUrl, {
+        headers: { Host: hostHeader },
+      }).catch((err) => {
+        lastStatus = `fetch error: ${err.message}`;
+        return null;
+      });
 
-    if (response) {
-      lastStatus = response.status;
-      if (response.ok) {
-        return;
+      if (response) {
+        lastStatus = response.status;
+        if (response.ok) {
+          return;
+        }
       }
+      await Bun.sleep(intervalMs);
     }
-    await Bun.sleep(intervalMs);
-  }
 
-  throw new ExternalServiceError(
-    `Service not available: ${sessionId}--${port} (last status: ${lastStatus})`,
-    "SERVICE_NOT_AVAILABLE",
-  );
+    throw new ExternalServiceError(
+      `Service not available: ${sessionId}--${port} (last status: ${lastStatus})`,
+      "SERVICE_NOT_AVAILABLE",
+    );
+  };
 }
 
 export interface BrowserBootstrapResult {
@@ -114,7 +119,7 @@ export const bootstrapBrowserService = async (
       publishStateChange: config.publishStateChange,
       getFirstExposedPort,
       getInitialNavigationUrl,
-      waitForService,
+      waitForService: createWaitForService(config),
     },
   );
 

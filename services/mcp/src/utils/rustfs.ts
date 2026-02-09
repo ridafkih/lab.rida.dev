@@ -4,14 +4,13 @@ import {
   PutBucketPolicyCommand,
   HeadBucketCommand,
 } from "@aws-sdk/client-s3";
-import { S3 } from "../config/constants";
 import { widelog } from "../logging";
 import type { Config } from "../types/tool";
 
 function createS3Client(config: Config): S3Client {
   return new S3Client({
     endpoint: config.RUSTFS_ENDPOINT,
-    region: S3.REGION,
+    region: config.RUSTFS_REGION,
     credentials: {
       accessKeyId: config.RUSTFS_ACCESS_KEY,
       secretAccessKey: config.RUSTFS_SECRET_KEY,

@@ -5,13 +5,13 @@ type TextContent = { type: "text"; text: string };
 type ImageContent = { type: "image"; data: string; mimeType: "image/png" };
 type Content = TextContent | ImageContent;
 
-interface ToolResult {
+export interface ToolResult {
   [key: string]: unknown;
   isError?: boolean;
   content: Content[];
 }
 
-interface CommandNode {
+export interface CommandNode {
   description: string;
   children?: Record<string, CommandNode>;
   params?: z.ZodRawShape;

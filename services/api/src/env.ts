@@ -13,6 +13,7 @@ export const env = type({
   OPENCODE_CONTAINER_NAME: "string",
   PROXY_CONTAINER_NAME: "string",
   PROXY_BASE_DOMAIN: "string",
+  PROXY_PORT: "string.integer.parse = '8080'",
   POOL_SIZE: "string.integer.parse = '0'",
   GITHUB_CLIENT_ID: "string?",
   GITHUB_CLIENT_SECRET: "string?",

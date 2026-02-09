@@ -36,5 +36,4 @@ export const LIMITS = {
 
 export const SERVER = {
   IDLE_TIMEOUT_SECONDS: 255,
-  PROXY_PORT: 8080,
 } as const;

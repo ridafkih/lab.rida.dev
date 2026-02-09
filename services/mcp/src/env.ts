@@ -10,4 +10,5 @@ export const env = type({
   RUSTFS_SECRET_KEY: "string",
   RUSTFS_BUCKET: "string",
   RUSTFS_PUBLIC_URL: "string",
+  RUSTFS_REGION: "string = 'us-east-1'",
 });

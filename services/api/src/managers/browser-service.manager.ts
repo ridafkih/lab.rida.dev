@@ -16,6 +16,9 @@ interface BrowserServiceConfig {
   cleanupDelayMs: number;
   reconcileIntervalMs: number;
   maxRetries: number;
+  proxyContainerName: string;
+  proxyPort: number;
+  proxyBaseDomain: string;
 }
 
 export class BrowserServiceManager {
@@ -58,7 +61,16 @@ export class BrowserServiceManager {
 
     await cleanupOrphanedSessions();
 
-    const { apiUrl, wsHost, cleanupDelayMs, reconcileIntervalMs, maxRetries } = this.config;
+    const {
+      apiUrl,
+      wsHost,
+      cleanupDelayMs,
+      reconcileIntervalMs,
+      maxRetries,
+      proxyContainerName,
+      proxyPort,
+      proxyBaseDomain,
+    } = this.config;
 
     this.result = await bootstrapBrowserService({
       browserApiUrl: apiUrl,
@@ -66,6 +78,9 @@ export class BrowserServiceManager {
       cleanupDelayMs,
       reconcileIntervalMs,
       maxRetries,
+      proxyContainerName,
+      proxyPort,
+      proxyBaseDomain,
       publishFrame: (sessionId: string, frame: string, timestamp: number) => {
         const now = Date.now();
         const last = this.lastFrameTime.get(sessionId) ?? 0;

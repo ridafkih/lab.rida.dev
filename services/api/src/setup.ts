@@ -72,6 +72,9 @@ export const setup = (({ env }) => {
       cleanupDelayMs: env.BROWSER_CLEANUP_DELAY_MS,
       reconcileIntervalMs: env.RECONCILE_INTERVAL_MS,
       maxRetries: env.MAX_DAEMON_RETRIES,
+      proxyContainerName: env.PROXY_CONTAINER_NAME,
+      proxyPort: env.PROXY_PORT,
+      proxyBaseDomain: env.PROXY_BASE_DOMAIN,
     },
     deferredPublisher,
   );
