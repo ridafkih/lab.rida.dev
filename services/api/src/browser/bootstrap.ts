@@ -70,7 +70,7 @@ function createWaitForService(config: BrowserBootstrapConfig) {
     intervalMs = TIMING.SERVICE_WAIT_INTERVAL_MS
   ): Promise<void> {
     const proxyUrl = `${config.proxyInternalUrl}/`;
-    const hostHeader = `${sessionId}--${port}.${new URL(config.proxyBaseUrl).hostname}`;
+    const hostHeader = `${sessionId}--${port}.${new URL(config.proxyBaseUrl).host}`;
     const startTime = Date.now();
     let lastStatus: number | string = "no response";
 
