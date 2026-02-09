@@ -23,25 +23,27 @@ class IMessageAdapter implements PlatformAdapter {
   }
 
   initialize(): Promise<void> {
-    return widelog.context(() => {
-      widelog.set("event_name", "imessage.initialized");
-      widelog.time.start("duration_ms");
+    return Promise.resolve(
+      widelog.context(() => {
+        widelog.set("event_name", "imessage.initialized");
+        widelog.time.start("duration_ms");
 
-      try {
-        if (!config.imessageEnabled) {
-          widelog.set("enabled", false);
-          widelog.set("outcome", "skipped");
-          return;
+        try {
+          if (!config.imessageEnabled) {
+            widelog.set("enabled", false);
+            widelog.set("outcome", "skipped");
+            return;
+          }
+
+          this.sdk = new IMessageSDK();
+          widelog.set("enabled", true);
+          widelog.set("outcome", "success");
+        } finally {
+          widelog.time.stop("duration_ms");
+          widelog.flush();
         }
-
-        this.sdk = new IMessageSDK();
-        widelog.set("enabled", true);
-        widelog.set("outcome", "success");
-      } finally {
-        widelog.time.stop("duration_ms");
-        widelog.flush();
-      }
-    });
+      })
+    );
   }
 
   private getSkipReason(message: Message): string | null {
@@ -123,7 +125,7 @@ class IMessageAdapter implements PlatformAdapter {
         this.handler = handler;
 
         await this.sdk.startWatching({
-          onNewMessage: (message: Message) => {
+          onDirectMessage: (message: Message) => {
             return this.handleIncomingMessage(
               "imessage.message_received",
               message
