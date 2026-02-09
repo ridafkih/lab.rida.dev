@@ -78,6 +78,7 @@ function ProjectNavigatorHeader({ children, onAdd }: HeaderProps) {
       <Box className="shrink-0 text-text-secondary" size={14} />
       {children}
       <IconButton
+        as="span"
         className="ml-auto"
         onClick={(event) => {
           event.stopPropagation();

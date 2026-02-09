@@ -1,4 +1,4 @@
-import type { ComponentProps, Ref } from "react";
+import type { ComponentProps, ElementType, Ref } from "react";
 import { tv, type VariantProps } from "tailwind-variants";
 
 const iconButton = tv({
@@ -13,19 +13,22 @@ const iconButton = tv({
   },
 });
 
-type IconButtonProps = ComponentProps<"button"> &
+type IconButtonProps<T extends ElementType = "button"> = ComponentProps<T> &
   VariantProps<typeof iconButton> & {
-    ref?: Ref<HTMLButtonElement>;
+    as?: T;
+    ref?: Ref<HTMLElement>;
   };
 
-export function IconButton({
+export function IconButton<T extends ElementType = "button">({
+  as,
   className,
   variant,
   ref,
   ...props
-}: IconButtonProps) {
+}: IconButtonProps<T>) {
+  const Component = as ?? "button";
   return (
-    <button
+    <Component
       className={iconButton({ variant, className })}
       ref={ref}
       {...props}
