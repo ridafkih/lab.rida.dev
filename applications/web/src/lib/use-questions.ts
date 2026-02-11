@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useSessionClient } from "./use-session-client";
+import { getAgentApiUrl } from "./sandbox-agent-session";
 
 interface UseQuestionsResult {
   isSubmitting: boolean;
@@ -11,24 +11,26 @@ interface UseQuestionsResult {
 
 export function useQuestions(labSessionId: string): UseQuestionsResult {
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const opencodeClient = useSessionClient(labSessionId);
 
   const reply = async (requestId: string, answers: string[][]) => {
-    if (!opencodeClient) {
-      throw new Error("Client not initialized");
-    }
-
     setIsSubmitting(true);
 
     try {
-      const response = await opencodeClient.question.reply({
-        requestID: requestId,
-        answers,
-      });
-      if (response.error) {
-        throw new Error(
-          `Failed to reply to question: ${JSON.stringify(response.error)}`
-        );
+      const apiUrl = getAgentApiUrl();
+      const response = await fetch(
+        `${apiUrl}/sandbox-agent/questions/${encodeURIComponent(requestId)}/reply`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-Lab-Session-Id": labSessionId,
+          },
+          body: JSON.stringify({ answers }),
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error(`Failed to reply to question: ${response.status}`);
       }
     } finally {
       setIsSubmitting(false);
@@ -36,20 +38,23 @@ export function useQuestions(labSessionId: string): UseQuestionsResult {
   };
 
   const reject = async (requestId: string) => {
-    if (!opencodeClient) {
-      throw new Error("Client not initialized");
-    }
-
     setIsSubmitting(true);
 
     try {
-      const response = await opencodeClient.question.reject({
-        requestID: requestId,
-      });
-      if (response.error) {
-        throw new Error(
-          `Failed to reject question: ${JSON.stringify(response.error)}`
-        );
+      const apiUrl = getAgentApiUrl();
+      const response = await fetch(
+        `${apiUrl}/sandbox-agent/questions/${encodeURIComponent(requestId)}/reject`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-Lab-Session-Id": labSessionId,
+          },
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error(`Failed to reject question: ${response.status}`);
       }
     } finally {
       setIsSubmitting(false);

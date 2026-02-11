@@ -74,6 +74,10 @@
     "./schema/auth": {
       "types": "./src/schema/auth.ts",
       "default": "./src/schema/auth.ts"
+    },
+    "./schema/api-keys": {
+      "types": "./src/schema/api-keys.ts",
+      "default": "./src/schema/api-keys.ts"
     }
   },
   "scripts": {

@@ -11,6 +11,7 @@ const settingsTabs: TabItem[] = [
     href: "/settings/projects",
     match: "/settings/projects",
   },
+  { label: "API Keys", href: "/settings/api-keys" },
 ];
 
 interface SettingsShellProps {

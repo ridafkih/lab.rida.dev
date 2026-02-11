@@ -79,16 +79,3 @@ export function getErrorMessage(
 ): string {
   return error instanceof Error ? error.message : fallback;
 }
-
-export function throwOnOpencodeError(
-  response: { error?: unknown },
-  message: string,
-  code: string
-): void {
-  if (response.error) {
-    throw new ExternalServiceError(
-      `${message}: ${JSON.stringify(response.error)}`,
-      code
-    );
-  }
-}

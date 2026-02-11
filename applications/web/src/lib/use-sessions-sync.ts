@@ -16,7 +16,7 @@ function toSession(multiplayerSession: MultiplayerSession): Session {
     id: multiplayerSession.id,
     projectId: multiplayerSession.projectId,
     title: multiplayerSession.title,
-    opencodeSessionId: null,
+    sandboxSessionId: null,
     status: "idle",
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),

@@ -54,7 +54,7 @@ const POST = withParams<{ sessionId: string }, InfraContext>(
         sessionId,
         originalTask: originalTask || orchestration.content,
         platformOrigin: orchestration.platformOrigin ?? undefined,
-        opencode: ctx.opencode,
+        sandboxAgentResolver: ctx.sandboxAgentResolver,
       });
 
       await updateOrchestrationSummaryStatus(

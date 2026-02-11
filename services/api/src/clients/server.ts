@@ -11,8 +11,12 @@ import {
 } from "@lab/http-utilities";
 import { schema } from "@lab/multiplayer-sdk";
 import { createPublisher, type WebSocketData } from "@lab/multiplayer-server";
-import { isHttpMethod, isRouteModule } from "@lab/router";
-import { type Server as BunServer, FileSystemRouter, serve } from "bun";
+import {
+  type Server as BunServer,
+  FileSystemRouter,
+  password,
+  serve,
+} from "bun";
 import type { Auth as BetterAuthInstance } from "../auth";
 import { SERVER } from "../config/constants";
 import { widelog } from "../logging";
@@ -20,17 +24,14 @@ import type { BrowserServiceManager } from "../managers/browser-service.manager"
 import type { PoolManager } from "../managers/pool.manager";
 import type { SessionLifecycleManager } from "../managers/session-lifecycle.manager";
 import type { LogMonitor } from "../monitors/log.monitor";
-import { createOpenCodeProxyHandler } from "../opencode/handler";
 import { reconcileNetworkConnections } from "../runtime/network";
+import type { SandboxAgentClientResolver } from "../sandbox-agent/client-resolver";
+import type { SandboxAgentContainerManager } from "../sandbox-agent/container-manager";
+import { createSandboxAgentProxyHandler } from "../sandbox-agent/handler";
 import { AppError, ServiceUnavailableError } from "../shared/errors";
 import { createChannelRestHandler } from "../snapshots/rest-handler";
 import type { SessionStateStore } from "../state/session-state-store";
-import type {
-  OpencodeClient,
-  Publisher,
-  Sandbox,
-  Widelog,
-} from "../types/dependencies";
+import type { Publisher, Sandbox, Widelog } from "../types/dependencies";
 import type { PromptService } from "../types/prompt";
 import type { RouteContext } from "../types/route";
 import {
@@ -40,7 +41,6 @@ import {
 
 interface ApiServerConfig {
   proxyBaseUrl: string;
-  opencodeUrl: string;
   github: {
     clientId?: string;
     clientSecret?: string;
@@ -56,7 +56,8 @@ interface ApiServerServices {
   poolManager: PoolManager;
   logMonitor: LogMonitor;
   sandbox: Sandbox;
-  opencode: OpencodeClient;
+  sandboxAgentResolver: SandboxAgentClientResolver;
+  sandboxAgentContainerManager: SandboxAgentContainerManager;
   promptService: PromptService;
   imageStore?: ImageStore;
   widelog: Widelog;
@@ -90,15 +91,15 @@ export class ApiServer {
   }
 
   start(port: string): Promise<Publisher> {
-    const { proxyBaseUrl, opencodeUrl, github, frontendUrl, auth } =
-      this.config;
+    const { proxyBaseUrl, github, frontendUrl, auth } = this.config;
     const {
       browserService,
       sessionLifecycle,
       poolManager,
       logMonitor,
       sandbox,
-      opencode,
+      sandboxAgentResolver,
+      sandboxAgentContainerManager,
       promptService,
       imageStore,
       sessionStateStore,
@@ -106,20 +107,22 @@ export class ApiServer {
 
     this.publisher = createPublisher(schema, () => this.getServer());
 
-    const handleOpenCodeProxy = createOpenCodeProxyHandler({
-      opencodeUrl,
+    const handleSandboxAgentProxy = createSandboxAgentProxyHandler({
+      containerManager: sandboxAgentContainerManager,
       publisher: this.publisher,
       promptService,
       sessionStateStore,
     });
 
     const routeContext: RouteContext = {
+      auth,
       browserService,
       sessionLifecycle,
       poolManager,
       promptService,
       sandbox,
-      opencode,
+      sandboxAgentResolver,
+      sandboxAgentContainerManager,
       publisher: this.publisher,
       logMonitor,
       imageStore,
@@ -134,7 +137,7 @@ export class ApiServer {
     const { websocketHandler, upgrade } = createWebSocketHandlers({
       browserService: browserService.service,
       publisher: this.publisher,
-      opencode,
+      sandboxAgentResolver,
       logMonitor,
       proxyBaseUrl,
       sessionStateStore,
@@ -142,7 +145,7 @@ export class ApiServer {
 
     const handleChannelRequest = createChannelRestHandler({
       browserService: browserService.service,
-      opencode,
+      sandboxAgentResolver,
       logMonitor,
       proxyBaseUrl,
       sessionStateStore,
@@ -189,16 +192,16 @@ export class ApiServer {
           return Promise.resolve(upgrade(request, this.getServer()));
         }
 
-        if (url.pathname.startsWith("/opencode/")) {
+        if (url.pathname.startsWith("/sandbox-agent/")) {
           return this.handleRequestWithWideEvent(request, url, () => {
-            this.services.widelog.set("route", "opencode_proxy");
+            this.services.widelog.set("route", "sandbox_agent_proxy");
 
             const labSessionId = request.headers.get("X-Lab-Session-Id");
             if (labSessionId) {
               this.services.widelog.set("session_id", labSessionId);
             }
 
-            return handleOpenCodeProxy(request, url);
+            return handleSandboxAgentProxy(request, url);
           });
         }
 
@@ -242,7 +245,6 @@ export class ApiServer {
   ): Promise<Response> {
     return this.handleRequestWithWideEvent(request, url, async () => {
       const { widelog } = this.services;
-      const { auth } = this.config;
       const origin = request.headers.get("Origin") ?? undefined;
       const match = this.router.match(request);
 
@@ -252,52 +254,16 @@ export class ApiServer {
       }
 
       if (!match.name.startsWith("/internal/")) {
-        const session = await auth.api.getSession({
-          headers: request.headers,
-        });
-        if (!session) {
-          widelog.set("auth", "unauthorized");
-          const response = withCors(
-            Response.json({ error: "Unauthorized" }, { status: 401 }),
-            origin
-          );
-          response.headers.append(
-            "Set-Cookie",
-            "better-auth.session_token=; Path=/; Max-Age=0"
-          );
-          return response;
+        const authFailure = await this.authenticateRequest(request, origin);
+        if (authFailure) {
+          return authFailure;
         }
-        widelog.set("auth.user_id", session.user.id);
       }
 
       widelog.set("route", match.name);
-      for (const [param, value] of Object.entries(match.params)) {
-        if (typeof value === "string" && value.length > 0) {
-          widelog.set(`route_params.${param}`, value);
-        }
-      }
+      this.logRouteParams(match.params);
 
-      const module: unknown = await import(match.filePath);
-      if (!isRouteModule(module)) {
-        widelog.set("route_module_valid", false);
-        return withCors(errorResponse(), origin);
-      }
-
-      if (!isHttpMethod(request.method)) {
-        widelog.set("method_supported", false);
-        return withCors(methodNotAllowedResponse(), origin);
-      }
-
-      const handler = module[request.method];
-      if (!handler) {
-        widelog.set("method_implemented", false);
-        return withCors(methodNotAllowedResponse(), origin);
-      }
-
-      return withCors(
-        await handler({ request, params: match.params, context: routeContext }),
-        origin
-      );
+      return this.executeRouteHandler(request, match, routeContext, origin);
     });
   }
 
@@ -368,6 +334,114 @@ export class ApiServer {
     }
 
     widelog.set("outcome", "success");
+  }
+
+  private async verifyApiKey(token: string): Promise<boolean> {
+    const { db } = await import("@lab/database/client");
+    const { apiKey: apiKeyTable } = await import(
+      "@lab/database/schema/api-keys"
+    );
+    const { eq } = await import("drizzle-orm");
+
+    const keys = await db
+      .select({ id: apiKeyTable.id, keyHash: apiKeyTable.keyHash })
+      .from(apiKeyTable);
+
+    for (const row of keys) {
+      const valid = await password.verify(token, row.keyHash);
+      if (valid) {
+        await db
+          .update(apiKeyTable)
+          .set({ lastUsedAt: new Date() })
+          .where(eq(apiKeyTable.id, row.id));
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  private async authenticateRequest(
+    request: Request,
+    origin: string | undefined
+  ): Promise<Response | null> {
+    const { widelog } = this.services;
+    const { auth } = this.config;
+
+    const authHeader = request.headers.get("Authorization");
+    const bearerToken = authHeader?.startsWith("Bearer ")
+      ? authHeader.slice(7)
+      : null;
+
+    if (bearerToken !== null) {
+      const valid = await this.verifyApiKey(bearerToken);
+      if (valid) {
+        widelog.set("auth", "api_key");
+        return null;
+      }
+    }
+
+    const session = await auth.api.getSession({ headers: request.headers });
+    if (!session) {
+      widelog.set("auth", "unauthorized");
+      const response = withCors(
+        Response.json({ error: "Unauthorized" }, { status: 401 }),
+        origin
+      );
+      response.headers.append(
+        "Set-Cookie",
+        "better-auth.session_token=; Path=/; Max-Age=0"
+      );
+      return response;
+    }
+
+    widelog.set("auth.user_id", session.user.id);
+    return null;
+  }
+
+  private logRouteParams(params: Record<string, string | undefined>): void {
+    const { widelog } = this.services;
+    for (const [param, value] of Object.entries(params)) {
+      if (typeof value === "string" && value.length > 0) {
+        widelog.set(`route_params.${param}`, value);
+      }
+    }
+  }
+
+  private async executeRouteHandler(
+    request: Request,
+    match: {
+      name: string;
+      filePath: string;
+      params: Record<string, string>;
+    },
+    routeContext: RouteContext,
+    origin: string | undefined
+  ): Promise<Response> {
+    const { isRouteModule, isHttpMethod } = await import("@lab/router");
+    const { widelog } = this.services;
+
+    const module: unknown = await import(match.filePath);
+    if (!isRouteModule(module)) {
+      widelog.set("route_module_valid", false);
+      return withCors(errorResponse(), origin);
+    }
+
+    if (!isHttpMethod(request.method)) {
+      widelog.set("method_supported", false);
+      return withCors(methodNotAllowedResponse(), origin);
+    }
+
+    const handler = module[request.method];
+    if (!handler) {
+      widelog.set("method_implemented", false);
+      return withCors(methodNotAllowedResponse(), origin);
+    }
+
+    return withCors(
+      await handler({ request, params: match.params, context: routeContext }),
+      origin
+    );
   }
 
   shutdown(): void {

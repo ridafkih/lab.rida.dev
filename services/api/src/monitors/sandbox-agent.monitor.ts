@@ -1,22 +1,24 @@
 import { TIMING } from "../config/constants";
 import { widelog } from "../logging";
-import { extractTextFromParts, parseEvent } from "../opencode/event-parser";
-import {
-  publishInferenceStatus,
-  publishSessionCompletion,
-  publishSessionDiff,
-} from "../opencode/publisher-adapter";
 import {
   findRunningSessions,
   findSessionById,
 } from "../repositories/session.repository";
+import type { SandboxAgentClientResolver } from "../sandbox-agent/client-resolver";
+import {
+  extractTextFromEvent,
+  isKnownEventType,
+} from "../sandbox-agent/event-parser";
+import {
+  publishInferenceStatus,
+  publishSessionCompletion,
+} from "../sandbox-agent/publisher-adapter";
 import type { DeferredPublisher } from "../shared/deferred-publisher";
-import { resolveWorkspacePathBySession } from "../shared/path-resolver";
 import {
   INFERENCE_STATUS,
   type SessionStateStore,
 } from "../state/session-state-store";
-import type { OpencodeClient, Publisher } from "../types/dependencies";
+import type { Publisher, SandboxAgentClient } from "../types/dependencies";
 
 class CompletionTimerManager {
   private readonly timers = new Map<string, NodeJS.Timeout>();
@@ -37,7 +39,7 @@ class CompletionTimerManager {
 
     const timer = setTimeout(() => {
       widelog.context(() => {
-        widelog.set("event_name", "opencode_monitor.session_completion");
+        widelog.set("event_name", "sandbox_agent_monitor.session_completion");
         widelog.set("session_id", sessionId);
         widelog.set("debounce_ms", TIMING.COMPLETION_DEBOUNCE_MS);
 
@@ -70,20 +72,20 @@ class SessionTracker {
   private readonly abortController = new AbortController();
 
   readonly labSessionId: string;
-  private readonly opencode: OpencodeClient;
+  private readonly sandboxAgentResolver: SandboxAgentClientResolver;
   private readonly getPublisher: () => Publisher;
   private readonly completionTimerManager: CompletionTimerManager;
   private readonly sessionStateStore: SessionStateStore;
 
   constructor(
     labSessionId: string,
-    opencode: OpencodeClient,
+    sandboxAgentResolver: SandboxAgentClientResolver,
     getPublisher: () => Publisher,
     completionTimerManager: CompletionTimerManager,
     sessionStateStore: SessionStateStore
   ) {
     this.labSessionId = labSessionId;
-    this.opencode = opencode;
+    this.sandboxAgentResolver = sandboxAgentResolver;
     this.getPublisher = getPublisher;
     this.completionTimerManager = completionTimerManager;
     this.sessionStateStore = sessionStateStore;
@@ -100,66 +102,32 @@ class SessionTracker {
     return !this.abortController.signal.aborted;
   }
 
-  private syncInitialStatus(directory: string): Promise<void> {
-    return widelog.context(async () => {
-      widelog.set("event_name", "opencode_monitor.sync_initial_status");
-      widelog.set("session_id", this.labSessionId);
-
+  private async monitor(): Promise<void> {
+    while (this.isActive) {
       try {
         const session = await findSessionById(this.labSessionId);
-        if (!session?.opencodeSessionId) {
-          widelog.set("outcome", "skipped");
-          return;
+        if (!session?.sandboxSessionId) {
+          await new Promise((resolve) =>
+            setTimeout(resolve, TIMING.SANDBOX_AGENT_MONITOR_RETRY_MS)
+          );
+          continue;
         }
 
-        const result = await this.opencode.session.status({ directory });
-        if (!result.data) {
-          widelog.set("outcome", "no_data");
-          return;
+        let client: SandboxAgentClient | null = null;
+        try {
+          client = await this.sandboxAgentResolver.getClient(this.labSessionId);
+        } catch {
+          await new Promise((resolve) =>
+            setTimeout(resolve, TIMING.SANDBOX_AGENT_MONITOR_RETRY_MS)
+          );
+          continue;
         }
 
-        const status = result.data[session.opencodeSessionId];
-        const inferenceStatus =
-          status?.type === "busy"
-            ? INFERENCE_STATUS.GENERATING
-            : INFERENCE_STATUS.IDLE;
+        const events = client.streamEvents(session.sandboxSessionId, {
+          signal: this.abortController.signal,
+        });
 
-        await this.sessionStateStore.setInferenceStatus(
-          this.labSessionId,
-          inferenceStatus
-        );
-        publishInferenceStatus(
-          this.getPublisher(),
-          this.labSessionId,
-          inferenceStatus
-        );
-        widelog.set("inference_status", inferenceStatus);
-        widelog.set("outcome", "success");
-      } catch (error) {
-        widelog.set("outcome", "error");
-        widelog.errorFields(error);
-      } finally {
-        widelog.flush();
-      }
-    });
-  }
-
-  private async monitor(): Promise<void> {
-    const directory = await resolveWorkspacePathBySession(this.labSessionId);
-
-    while (this.isActive) {
-      await this.syncInitialStatus(directory);
-
-      try {
-        const { stream } = await this.opencode.event.subscribe(
-          { directory },
-          { signal: this.abortController.signal }
-        );
-        if (!stream) {
-          return;
-        }
-
-        for await (const event of stream) {
+        for await (const event of events) {
           if (!this.isActive) {
             break;
           }
@@ -170,50 +138,50 @@ class SessionTracker {
           return;
         }
         widelog.context(() => {
-          widelog.set("event_name", "opencode_monitor.session_tracker_error");
+          widelog.set(
+            "event_name",
+            "sandbox_agent_monitor.session_tracker_error"
+          );
           widelog.set("session_id", this.labSessionId);
-          widelog.set("retry_delay_ms", TIMING.OPENCODE_MONITOR_RETRY_MS);
+          widelog.set("retry_delay_ms", TIMING.SANDBOX_AGENT_MONITOR_RETRY_MS);
           widelog.set("outcome", "error");
           widelog.errorFields(error);
           widelog.flush();
         });
 
         await new Promise((resolve) =>
-          setTimeout(resolve, TIMING.OPENCODE_MONITOR_RETRY_MS)
+          setTimeout(resolve, TIMING.SANDBOX_AGENT_MONITOR_RETRY_MS)
         );
       }
     }
   }
 
-  private async processEvent(rawEvent: unknown): Promise<void> {
-    const event = parseEvent(rawEvent);
-    if (!event) {
+  private async processEvent(event: {
+    type: string;
+    sequence: number;
+    data: Record<string, unknown>;
+  }): Promise<void> {
+    if (!isKnownEventType(event.type)) {
       return;
     }
 
     switch (event.type) {
-      case "session.diff":
-        publishSessionDiff(this.getPublisher(), this.labSessionId, event);
+      case "turn.started":
+      case "item.started":
+      case "item.delta":
+        await this.handleActivity(event);
         break;
 
-      case "message.updated":
-        await this.handleMessageUpdate(
-          extractTextFromParts(event.properties.parts)
-        );
+      case "turn.ended":
+        await this.handleTurnEnded();
         break;
 
-      case "message.part.updated":
-        if (
-          event.properties.part.type === "text" &&
-          event.properties.part.text
-        ) {
-          await this.handleMessageUpdate(event.properties.part.text);
-        }
+      case "item.completed":
+        // Track file references for diffs if needed
         break;
 
-      case "session.idle":
-      case "session.error":
-        await this.handleSessionInactive();
+      case "error":
+        await this.handleError();
         break;
 
       default:
@@ -221,15 +189,21 @@ class SessionTracker {
     }
   }
 
-  private async handleMessageUpdate(text: string | null): Promise<void> {
-    this.completionTimerManager.clearSession(this.labSessionId);
+  private async handleActivity(event: {
+    type: string;
+    data: Record<string, unknown>;
+  }): Promise<void> {
+    this.completionTimerManager.cancelCompletion(this.labSessionId);
     await this.sessionStateStore.setInferenceStatus(
       this.labSessionId,
       INFERENCE_STATUS.GENERATING
     );
+
+    const text = extractTextFromEvent(event as never);
     if (text) {
       await this.sessionStateStore.setLastMessage(this.labSessionId, text);
     }
+
     publishInferenceStatus(
       this.getPublisher(),
       this.labSessionId,
@@ -238,7 +212,20 @@ class SessionTracker {
     );
   }
 
-  private async handleSessionInactive(): Promise<void> {
+  private async handleTurnEnded(): Promise<void> {
+    await this.sessionStateStore.setInferenceStatus(
+      this.labSessionId,
+      INFERENCE_STATUS.IDLE
+    );
+    publishInferenceStatus(
+      this.getPublisher(),
+      this.labSessionId,
+      INFERENCE_STATUS.IDLE
+    );
+    this.completionTimerManager.scheduleCompletion(this.labSessionId);
+  }
+
+  private async handleError(): Promise<void> {
     await this.sessionStateStore.setInferenceStatus(
       this.labSessionId,
       INFERENCE_STATUS.IDLE
@@ -252,30 +239,30 @@ class SessionTracker {
   }
 }
 
-export class OpenCodeMonitor {
+export class SandboxAgentMonitor {
   private readonly trackers = new Map<string, SessionTracker>();
   private readonly abortController = new AbortController();
   private readonly completionTimerManager = new CompletionTimerManager(() =>
     this.deferredPublisher.get()
   );
 
-  private readonly opencode: OpencodeClient;
+  private readonly sandboxAgentResolver: SandboxAgentClientResolver;
   private readonly deferredPublisher: DeferredPublisher;
   private readonly sessionStateStore: SessionStateStore;
 
   constructor(
-    opencode: OpencodeClient,
+    sandboxAgentResolver: SandboxAgentClientResolver,
     deferredPublisher: DeferredPublisher,
     sessionStateStore: SessionStateStore
   ) {
-    this.opencode = opencode;
+    this.sandboxAgentResolver = sandboxAgentResolver;
     this.deferredPublisher = deferredPublisher;
     this.sessionStateStore = sessionStateStore;
   }
 
   async start(): Promise<void> {
     await widelog.context(async () => {
-      widelog.set("event_name", "opencode_monitor.start");
+      widelog.set("event_name", "sandbox_agent_monitor.start");
       widelog.time.start("duration_ms");
 
       try {
@@ -305,7 +292,7 @@ export class OpenCodeMonitor {
   private async runSyncLoop(): Promise<void> {
     while (!this.abortController.signal.aborted) {
       await new Promise((resolve) =>
-        setTimeout(resolve, TIMING.OPENCODE_SYNC_INTERVAL_MS)
+        setTimeout(resolve, TIMING.SANDBOX_AGENT_SYNC_INTERVAL_MS)
       );
       if (this.abortController.signal.aborted) {
         return;
@@ -315,9 +302,12 @@ export class OpenCodeMonitor {
         await this.syncSessions();
       } catch (error) {
         widelog.context(() => {
-          widelog.set("event_name", "opencode_monitor.sync_failed");
+          widelog.set("event_name", "sandbox_agent_monitor.sync_failed");
           widelog.set("active_trackers", this.trackers.size);
-          widelog.set("sync_interval_ms", TIMING.OPENCODE_SYNC_INTERVAL_MS);
+          widelog.set(
+            "sync_interval_ms",
+            TIMING.SANDBOX_AGENT_SYNC_INTERVAL_MS
+          );
           widelog.set("outcome", "error");
           widelog.errorFields(error);
           widelog.flush();
@@ -343,7 +333,7 @@ export class OpenCodeMonitor {
           id,
           new SessionTracker(
             id,
-            this.opencode,
+            this.sandboxAgentResolver,
             () => this.deferredPublisher.get(),
             this.completionTimerManager,
             this.sessionStateStore

@@ -6,15 +6,14 @@ export const LABELS = {
 
 export const VOLUMES = {
   WORKSPACES: "lab_session_workspaces",
-  OPENCODE_AUTH: "lab_opencode_auth",
-  OPENCODE_AUTH_TARGET: "/root/.local/share/opencode",
+  SANDBOX_AGENT_DATA: "lab_sandbox_agent_data",
   BROWSER_SOCKET_DIR: "/tmp/agent-browser-socket",
 } as const;
 
 export const TIMING = {
   CONTAINER_MONITOR_RETRY_MS: 5000,
-  OPENCODE_MONITOR_RETRY_MS: 5000,
-  OPENCODE_SYNC_INTERVAL_MS: 30_000,
+  SANDBOX_AGENT_MONITOR_RETRY_MS: 5000,
+  SANDBOX_AGENT_SYNC_INTERVAL_MS: 30_000,
   CONTAINER_MONITOR_INITIAL_RETRY_MS: 1000,
   CONTAINER_MONITOR_MAX_RETRY_MS: 60_000,
   COMPLETION_DEBOUNCE_MS: 5000,

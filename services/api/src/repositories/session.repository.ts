@@ -1,7 +1,7 @@
 import { db } from "@lab/database/client";
 import { projects } from "@lab/database/schema/projects";
 import { type Session, sessions } from "@lab/database/schema/sessions";
-import { and, desc, eq, ilike, inArray, isNull, ne, or } from "drizzle-orm";
+import { and, desc, eq, ilike, inArray, ne, or } from "drizzle-orm";
 import { InternalError, orThrow } from "../shared/errors";
 import { SESSION_STATUS } from "../types/session";
 
@@ -53,45 +53,33 @@ export async function createSession(
 export function updateSessionFields(
   sessionId: string,
   fields: {
-    opencodeSessionId?: string;
+    sandboxSessionId?: string;
+    sandboxAgentPort?: number;
+    sandboxAgentContainerId?: string;
     workspaceDirectory?: string;
     title?: string;
   }
 ): Promise<Session | null> {
   return db.transaction(async (tx) => {
-    if (fields.opencodeSessionId) {
-      await tx
-        .update(sessions)
-        .set({
-          opencodeSessionId: fields.opencodeSessionId,
-          ...(fields.workspaceDirectory && {
-            workspaceDirectory: fields.workspaceDirectory,
-          }),
-          updatedAt: new Date(),
-        })
-        .where(
-          and(eq(sessions.id, sessionId), isNull(sessions.opencodeSessionId))
-        );
+    const setFields: Record<string, unknown> = { updatedAt: new Date() };
 
-      if (fields.workspaceDirectory) {
-        await tx
-          .update(sessions)
-          .set({
-            workspaceDirectory: fields.workspaceDirectory,
-            updatedAt: new Date(),
-          })
-          .where(
-            and(eq(sessions.id, sessionId), isNull(sessions.workspaceDirectory))
-          );
-      }
+    if (fields.sandboxSessionId) {
+      setFields.sandboxSessionId = fields.sandboxSessionId;
     }
-
+    if (fields.sandboxAgentPort !== undefined) {
+      setFields.sandboxAgentPort = fields.sandboxAgentPort;
+    }
+    if (fields.sandboxAgentContainerId) {
+      setFields.sandboxAgentContainerId = fields.sandboxAgentContainerId;
+    }
+    if (fields.workspaceDirectory) {
+      setFields.workspaceDirectory = fields.workspaceDirectory;
+    }
     if (fields.title !== undefined) {
-      await tx
-        .update(sessions)
-        .set({ title: fields.title, updatedAt: new Date() })
-        .where(eq(sessions.id, sessionId));
+      setFields.title = fields.title;
     }
+
+    await tx.update(sessions).set(setFields).where(eq(sessions.id, sessionId));
 
     const [session] = await tx
       .select()
@@ -212,7 +200,7 @@ export function searchSessionsWithProject({
       projectId: sessions.projectId,
       projectName: projects.name,
       title: sessions.title,
-      opencodeSessionId: sessions.opencodeSessionId,
+      sandboxSessionId: sessions.sandboxSessionId,
       status: sessions.status,
       createdAt: sessions.createdAt,
     })

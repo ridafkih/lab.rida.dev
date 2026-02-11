@@ -23,6 +23,7 @@ export { DockerVolumeManager } from "./modules/docker-volume-manager";
 export { DockerWorkspaceManager } from "./modules/docker-workspace-manager";
 export { ExecOperations } from "./modules/exec-operations";
 export { NetworkOperations } from "./modules/network-operations";
+export { WorkspaceUtilityContainer } from "./modules/workspace-utility-container";
 export type {
   DockerClientOptions,
   DockerContainerEvent,

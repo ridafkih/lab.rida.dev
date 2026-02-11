@@ -85,7 +85,7 @@ export interface Session {
   id: string;
   projectId: string;
   title: string | null;
-  opencodeSessionId: string | null;
+  sandboxSessionId: string | null;
   status: SessionStatus;
   containers?: SessionContainer[];
   createdAt: string;
@@ -93,8 +93,6 @@ export interface Session {
 }
 
 export interface Model {
-  providerId: string;
-  providerName: string;
   modelId: string;
   name: string;
 }
@@ -103,6 +101,18 @@ export interface OrchestrationInput {
   content: string;
   channelId?: string;
   modelId?: string;
+}
+
+export interface ApiKey {
+  id: string;
+  name: string;
+  keyPrefix: string;
+  lastUsedAt: string | null;
+  createdAt: string;
+}
+
+export interface ApiKeyCreated extends ApiKey {
+  key: string;
 }
 
 export interface OrchestrationResult {

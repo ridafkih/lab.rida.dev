@@ -32,6 +32,7 @@
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^3.0.39",
+    "@ai-sdk/moonshotai": "^2.0.3",
     "@ai-sdk/openai": "^3.0.26",
     "@lab/browser-protocol": "workspace:*",
     "ai": "^6.0.77",

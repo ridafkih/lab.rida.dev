@@ -27,6 +27,7 @@ function optionalList(name: string): string[] {
 export const config = {
   apiUrl: required("API_URL"),
   apiWsUrl: required("API_WS_URL"),
+  apiKey: required("API_KEY"),
   imessageEnabled: optionalBool("IMESSAGE_ENABLED", true),
   imessageWatchedContacts: optionalList("IMESSAGE_WATCHED_CONTACTS"),
   imessageContextMessages: optionalInt("IMESSAGE_CONTEXT_MESSAGES", 20),

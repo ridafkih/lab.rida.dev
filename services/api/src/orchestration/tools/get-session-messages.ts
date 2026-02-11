@@ -1,9 +1,8 @@
 import { tool } from "ai";
 import { z } from "zod";
 import { findSessionById } from "../../repositories/session.repository";
-import { resolveWorkspacePathBySession } from "../../shared/path-resolver";
-import type { OpencodeClient } from "../../types/dependencies";
-import { extractTextFromParts, isOpencodeMessage } from "../opencode-messages";
+import type { SandboxAgentClientResolver } from "../../sandbox-agent/client-resolver";
+import { fetchSessionMessages } from "../sandbox-agent-messages";
 
 const inputSchema = z.object({
   sessionId: z.string().describe("The session ID to get messages from"),
@@ -14,7 +13,9 @@ const inputSchema = z.object({
     .describe("Maximum number of messages to return (most recent first)"),
 });
 
-export function createGetSessionMessagesTool(opencode: OpencodeClient) {
+export function createGetSessionMessagesTool(
+  sandboxAgentResolver: SandboxAgentClientResolver
+) {
   return tool({
     description:
       "Gets conversation messages from a session. Returns messages in reverse chronological order (most recent first) with role and content.",
@@ -26,7 +27,7 @@ export function createGetSessionMessagesTool(opencode: OpencodeClient) {
         return { error: "Session not found", messages: [] };
       }
 
-      if (!session.opencodeSessionId) {
+      if (!session.sandboxSessionId) {
         return {
           error: "Session has no conversation history yet",
           messages: [],
@@ -34,22 +35,16 @@ export function createGetSessionMessagesTool(opencode: OpencodeClient) {
       }
 
       try {
-        const directory = await resolveWorkspacePathBySession(sessionId);
-        const response = await opencode.session.messages({
-          sessionID: session.opencodeSessionId,
-          directory,
-          limit: limit ?? 20,
-        });
-
-        const rawMessages = response.data ?? [];
-        const messages = Array.isArray(rawMessages)
-          ? rawMessages.filter(isOpencodeMessage)
-          : [];
+        const messages = await fetchSessionMessages(
+          sandboxAgentResolver,
+          sessionId,
+          session.sandboxSessionId
+        );
 
         return {
-          messages: messages.map((msg) => ({
-            role: msg.info.role,
-            content: extractTextFromParts(msg.parts),
+          messages: messages.slice(-(limit ?? 20)).map((msg) => ({
+            role: msg.role,
+            content: msg.content,
           })),
         };
       } catch (error) {

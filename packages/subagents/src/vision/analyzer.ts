@@ -1,4 +1,5 @@
 import { createAnthropic } from "@ai-sdk/anthropic";
+import { createMoonshotAI } from "@ai-sdk/moonshotai";
 import { createOpenAI } from "@ai-sdk/openai";
 import { generateText, type LanguageModel } from "ai";
 import type {
@@ -21,6 +22,10 @@ export function createVisionModel(config: ImageAnalyzerConfig): LanguageModel {
       const openai = createOpenAI({ apiKey: config.apiKey });
       return openai(config.model);
     }
+    case "moonshotai": {
+      const moonshotai = createMoonshotAI({ apiKey: config.apiKey });
+      return moonshotai(config.model);
+    }
     default:
       throw new Error(`Unsupported provider: ${config.provider}`);
   }
@@ -38,6 +43,7 @@ export function createVisionContextFromEnv(): ImageAnalyzerContext | undefined {
   const provider = process.env.IMAGE_ANALYZER_PROVIDER as
     | "anthropic"
     | "openai"
+    | "moonshotai"
     | undefined;
   const model = process.env.IMAGE_ANALYZER_MODEL;
   const apiKey = process.env.IMAGE_ANALYZER_API_KEY;
@@ -47,29 +53,9 @@ export function createVisionContextFromEnv(): ImageAnalyzerContext | undefined {
     return { createModel: () => visionModel };
   }
 
-  // Fall back to Anthropic Haiku if available
-  const anthropicKey = process.env.ANTHROPIC_API_KEY;
-  if (anthropicKey) {
-    const visionModel = createVisionModel({
-      provider: "anthropic",
-      model: "claude-3-haiku-20240307",
-      apiKey: anthropicKey,
-    });
-    return { createModel: () => visionModel };
-  }
-
-  // Fall back to OpenAI if available
-  const openaiKey = process.env.OPENAI_API_KEY;
-  if (openaiKey) {
-    const visionModel = createVisionModel({
-      provider: "openai",
-      model: "gpt-4o-mini",
-      apiKey: openaiKey,
-    });
-    return { createModel: () => visionModel };
-  }
-
-  return undefined;
+  throw new Error(
+    "The provider, model or apiKey was missing for the vision context"
+  );
 }
 
 /**

@@ -1,14 +1,13 @@
-import { throwOnOpencodeError } from "../shared/errors";
-import { resolveWorkspacePathBySession } from "../shared/path-resolver";
+import type { SandboxAgentClientResolver } from "../sandbox-agent/client-resolver";
+import { ExternalServiceError } from "../shared/errors";
 import type { SessionStateStore } from "../state/session-state-store";
-import type { OpencodeClient, Publisher } from "../types/dependencies";
+import type { Publisher } from "../types/dependencies";
 
 interface SendMessageOptions {
   sessionId: string;
-  opencodeSessionId: string;
+  sandboxSessionId: string;
   content: string;
-  modelId?: string;
-  opencode: OpencodeClient;
+  sandboxAgentResolver: SandboxAgentClientResolver;
   publisher: Publisher;
   sessionStateStore: SessionStateStore;
 }
@@ -18,29 +17,23 @@ export async function sendMessageToSession(
 ): Promise<void> {
   const {
     sessionId,
-    opencodeSessionId,
+    sandboxSessionId,
     content,
-    modelId,
-    opencode,
+    sandboxAgentResolver,
     publisher,
     sessionStateStore,
   } = options;
 
-  const workspacePath = await resolveWorkspacePathBySession(sessionId);
-  const [providerID, modelID] = modelId?.split("/") ?? [];
+  const sandboxAgent = await sandboxAgentResolver.getClient(sessionId);
 
-  const promptResponse = await opencode.session.promptAsync({
-    sessionID: opencodeSessionId,
-    directory: workspacePath,
-    model: providerID && modelID ? { providerID, modelID } : undefined,
-    parts: [{ type: "text", text: content }],
-  });
-
-  throwOnOpencodeError(
-    promptResponse,
-    "Failed to send message to session",
-    "OPENCODE_PROMPT_FAILED"
-  );
+  try {
+    await sandboxAgent.postMessage(sandboxSessionId, content);
+  } catch (error) {
+    throw new ExternalServiceError(
+      `Failed to send message to session: ${error instanceof Error ? error.message : String(error)}`,
+      "SANDBOX_AGENT_PROMPT_FAILED"
+    );
+  }
 
   await sessionStateStore.setLastMessage(sessionId, content);
   publisher.publishDelta(

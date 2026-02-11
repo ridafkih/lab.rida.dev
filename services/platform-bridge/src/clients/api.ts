@@ -12,9 +12,18 @@ import type {
 
 class ApiClient {
   private readonly baseUrl: string;
+  private readonly apiKey: string;
 
-  constructor(baseUrl: string = config.apiUrl) {
+  constructor(baseUrl: string = config.apiUrl, apiKey: string = config.apiKey) {
     this.baseUrl = baseUrl.replace(TRAILING_SLASH_PATTERN, "");
+    this.apiKey = apiKey;
+  }
+
+  private get headers(): Record<string, string> {
+    return {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${this.apiKey}`,
+    };
   }
 
   async orchestrate(
@@ -22,9 +31,7 @@ class ApiClient {
   ): Promise<OrchestrationResult> {
     const response = await fetch(`${this.baseUrl}/orchestrate`, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
+      headers: this.headers,
       body: JSON.stringify(request),
     });
 
@@ -45,9 +52,7 @@ class ApiClient {
   ): Promise<{ id: string; status: string } | null> {
     const response = await fetch(`${this.baseUrl}/sessions/${sessionId}`, {
       method: "GET",
-      headers: {
-        "Content-Type": "application/json",
-      },
+      headers: this.headers,
     });
 
     if (response.status === 404) {
@@ -93,9 +98,7 @@ class ApiClient {
   async chat(request: ChatRequest): Promise<ChatResult> {
     const response = await fetch(`${this.baseUrl}/orchestrate/chat`, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
+      headers: this.headers,
       body: JSON.stringify(request),
     });
 
@@ -120,9 +123,7 @@ class ApiClient {
   ): Promise<ChatResult> {
     const response = await fetch(`${this.baseUrl}/orchestrate/chat`, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
+      headers: this.headers,
       body: JSON.stringify(request),
     });
 
@@ -255,9 +256,7 @@ class ApiClient {
   }): Promise<ChatResult> {
     const response = await fetch(`${this.baseUrl}/orchestrate/chat/complete`, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
+      headers: this.headers,
       body: JSON.stringify(request),
     });
 

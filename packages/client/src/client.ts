@@ -1,4 +1,6 @@
 import type {
+  ApiKey,
+  ApiKeyCreated,
   Container,
   CreateContainerInput,
   CreateProjectInput,
@@ -103,7 +105,7 @@ export function createClient(config: ClientConfig) {
 
       update: (
         sessionId: string,
-        data: { opencodeSessionId?: string; title?: string }
+        data: { sandboxSessionId?: string; title?: string }
       ) =>
         request<Session>(`/sessions/${sessionId}`, {
           method: "PATCH",
@@ -118,6 +120,21 @@ export function createClient(config: ClientConfig) {
 
     models: {
       list: () => request<{ models: Model[] }>("/models"),
+    },
+
+    apiKeys: {
+      list: () => request<ApiKey[]>("/api-keys"),
+
+      create: (input: { name: string }) =>
+        request<ApiKeyCreated>("/api-keys", {
+          method: "POST",
+          body: JSON.stringify(input),
+        }),
+
+      delete: (keyId: string) =>
+        request<void>(`/api-keys/${keyId}`, {
+          method: "DELETE",
+        }),
     },
 
     orchestrate: (input: OrchestrationInput) =>

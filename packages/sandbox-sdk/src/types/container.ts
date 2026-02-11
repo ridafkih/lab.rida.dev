@@ -23,6 +23,7 @@ export interface ContainerCreateOptions {
   networkMode?: string;
   privileged?: boolean;
   restartPolicy?: RestartPolicy;
+  platform?: string;
 }
 
 export interface PortMapping {

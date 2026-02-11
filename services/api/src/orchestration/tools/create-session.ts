@@ -4,8 +4,9 @@ import type { BrowserServiceManager } from "../../managers/browser-service.manag
 import type { PoolManager } from "../../managers/pool.manager";
 import type { SessionLifecycleManager } from "../../managers/session-lifecycle.manager";
 import { findProjectById } from "../../repositories/project.repository";
+import type { SandboxAgentClientResolver } from "../../sandbox-agent/client-resolver";
 import type { SessionStateStore } from "../../state/session-state-store";
-import type { OpencodeClient, Publisher } from "../../types/dependencies";
+import type { Publisher } from "../../types/dependencies";
 import { initiateConversation } from "../conversation-initiator";
 import { spawnSession } from "../session-spawner";
 
@@ -14,7 +15,7 @@ interface CreateSessionToolContext {
   sessionLifecycle: SessionLifecycleManager;
   poolManager: PoolManager;
   modelId?: string;
-  opencode: OpencodeClient;
+  sandboxAgentResolver: SandboxAgentClientResolver;
   publisher: Publisher;
   sessionStateStore: SessionStateStore;
 }
@@ -54,7 +55,7 @@ export function createCreateSessionTool(context: CreateSessionToolContext) {
           sessionId: session.id,
           task: taskSummary,
           modelId: context.modelId,
-          opencode: context.opencode,
+          sandboxAgentResolver: context.sandboxAgentResolver,
           publisher: context.publisher,
           sessionStateStore: context.sessionStateStore,
         });

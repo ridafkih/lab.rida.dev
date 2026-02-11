@@ -12,7 +12,7 @@ import { parseRequestBody } from "../../shared/validation";
 import type { RouteContextFor } from "../../types/route";
 
 const patchSessionSchema = z.object({
-  opencodeSessionId: z.string().optional(),
+  sandboxSessionId: z.string().optional(),
   workspaceDirectory: z.string().optional(),
   title: z.string().optional(),
 });
@@ -73,7 +73,7 @@ const PATCH = withParams<{ sessionId: string }>(
     );
 
     const updated = await updateSessionFields(sessionId, {
-      opencodeSessionId: body.opencodeSessionId,
+      sandboxSessionId: body.sandboxSessionId,
       workspaceDirectory: body.workspaceDirectory,
       title: body.title,
     });

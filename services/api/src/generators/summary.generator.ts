@@ -2,13 +2,11 @@ import { LIMITS } from "../config/constants";
 import { widelog } from "../logging";
 import { complete } from "../orchestration/llm";
 import {
-  extractTextFromParts,
-  isOpencodeMessage,
-  type OpencodeMessage,
-} from "../orchestration/opencode-messages";
+  fetchSessionMessages,
+  type ReconstructedMessage,
+} from "../orchestration/sandbox-agent-messages";
 import { findSessionById } from "../repositories/session.repository";
-import { resolveWorkspacePathBySession } from "../shared/path-resolver";
-import type { OpencodeClient } from "../types/dependencies";
+import type { SandboxAgentClientResolver } from "../sandbox-agent/client-resolver";
 import { MESSAGE_ROLE } from "../types/message";
 
 interface TaskSummary {
@@ -21,15 +19,14 @@ interface GenerateSummaryOptions {
   sessionId: string;
   originalTask: string;
   platformOrigin?: string;
-  opencode: OpencodeClient;
+  sandboxAgentResolver: SandboxAgentClientResolver;
 }
 
-function formatConversationForLLM(messages: OpencodeMessage[]): string {
+function formatConversationForLLM(messages: ReconstructedMessage[]): string {
   return messages
     .map((msg) => {
-      const role = msg.info.role === MESSAGE_ROLE.USER ? "User" : "Assistant";
-      const text = extractTextFromParts(msg.parts);
-      return `${role}: ${text}`;
+      const role = msg.role === MESSAGE_ROLE.USER ? "User" : "Assistant";
+      return `${role}: ${msg.content}`;
     })
     .join("\n\n");
 }
@@ -56,10 +53,11 @@ function getPlatformGuideline(platform?: string): string {
 export async function generateTaskSummary(
   options: GenerateSummaryOptions
 ): Promise<TaskSummary> {
-  const { sessionId, originalTask, platformOrigin, opencode } = options;
+  const { sessionId, originalTask, platformOrigin, sandboxAgentResolver } =
+    options;
   const session = await findSessionById(sessionId);
 
-  if (!session?.opencodeSessionId) {
+  if (!session?.sandboxSessionId) {
     return {
       success: false,
       outcome: "Session not found",
@@ -68,16 +66,11 @@ export async function generateTaskSummary(
   }
 
   try {
-    const directory = await resolveWorkspacePathBySession(sessionId);
-    const response = await opencode.session.messages({
-      sessionID: session.opencodeSessionId,
-      directory,
-    });
-
-    const rawMessages = response.data ?? [];
-    const messages = Array.isArray(rawMessages)
-      ? rawMessages.filter(isOpencodeMessage)
-      : [];
+    const messages = await fetchSessionMessages(
+      sandboxAgentResolver,
+      sessionId,
+      session.sandboxSessionId
+    );
 
     if (messages.length === 0) {
       return {

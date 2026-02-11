@@ -40,7 +40,7 @@ const POST: Handler<OrchestrationContext> = async ({ request, context }) => {
       sessionId: session.id,
       task: taskSummary,
       modelId,
-      opencode: context.opencode,
+      sandboxAgentResolver: context.sandboxAgentResolver,
       publisher: context.publisher,
       sessionStateStore: context.sessionStateStore,
     });

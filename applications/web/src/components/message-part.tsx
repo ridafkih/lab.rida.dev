@@ -1,13 +1,5 @@
 "use client";
 
-import type {
-  FilePart,
-  Part,
-  ReasoningPart,
-  SnapshotPart,
-  TextPart,
-  ToolPart,
-} from "@opencode-ai/sdk/v2/client";
 import {
   Check,
   ChevronRight,
@@ -21,22 +13,30 @@ import { createContext, memo, type ReactNode, use, useState } from "react";
 import { tv } from "tailwind-variants";
 import { getToolRenderer } from "@/components/tool-renderers/registry";
 import { cn } from "@/lib/cn";
+import type {
+  ContentPart,
+  FileRefContentPart,
+  ImageContentPart,
+  ReasoningContentPart,
+  TextContentPart,
+  ToolCallContentPart,
+  ToolResultContentPart,
+} from "@/lib/sandbox-agent-types";
 import {
-  isAgentPart,
-  isCompactionPart,
-  isFilePart,
-  isPatchPart,
+  isFileRefPart,
+  isImagePart,
   isReasoningPart,
-  isRetryPart,
-  isSnapshotPart,
-  isStepFinishPart,
-  isStepStartPart,
-  isSubtaskPart,
   isTextPart,
-  isToolPart,
-  type SubtaskPart,
-} from "@/lib/opencode";
+  isToolCallPart,
+  isToolResultPart,
+} from "@/lib/sandbox-agent-types";
 import { Markdown } from "./markdown";
+
+function getToolStatus(
+  result: { error?: string } | null | undefined
+): "error" | "completed" {
+  return result?.error ? "error" : "completed";
+}
 
 const contentBlock = tv({
   base: "px-4 py-3 text-sm",
@@ -46,7 +46,7 @@ function MessagePartText({
   part,
   isStreaming,
 }: {
-  part: TextPart;
+  part: TextContentPart;
   isStreaming?: boolean;
 }) {
   if (part.text.trim().length === 0) {
@@ -54,7 +54,7 @@ function MessagePartText({
   }
 
   return (
-    <div className={contentBlock()} data-opencode-component="Text">
+    <div className={contentBlock()} data-component="Text">
       <Markdown isStreaming={isStreaming}>{part.text}</Markdown>
     </div>
   );
@@ -63,7 +63,7 @@ function MessagePartText({
 interface ReasoningContextValue {
   state: { expanded: boolean };
   actions: { toggle: () => void };
-  meta: { part: ReasoningPart };
+  meta: { part: ReasoningContentPart };
 }
 
 const ReasoningContext = createContext<ReasoningContextValue | null>(null);
@@ -82,7 +82,7 @@ function MessagePartReasoning({
   part,
   children,
 }: {
-  part: ReasoningPart;
+  part: ReasoningContentPart;
   children: ReactNode;
 }) {
   const [expanded, setExpanded] = useState(false);
@@ -99,7 +99,7 @@ function MessagePartReasoning({
         meta: { part },
       }}
     >
-      <div data-opencode-component="Reasoning">{children}</div>
+      <div data-component="Reasoning">{children}</div>
     </ReasoningContext>
   );
 }
@@ -171,7 +171,7 @@ const toolStatus = tv({
 interface ToolContextValue {
   state: { expanded: boolean };
   actions: { toggle: () => void };
-  meta: { part: ToolPart };
+  meta: { part: ToolCallContentPart; result?: ToolResultContentPart };
 }
 
 const ToolContext = createContext<ToolContextValue | null>(null);
@@ -185,13 +185,15 @@ function useTool() {
 }
 
 interface MessagePartToolProps {
-  part: ToolPart;
+  part: ToolCallContentPart;
+  result?: ToolResultContentPart;
   children: ReactNode;
   defaultExpanded?: boolean;
 }
 
 function MessagePartTool({
   part,
+  result,
   children,
   defaultExpanded = false,
 }: MessagePartToolProps) {
@@ -202,10 +204,10 @@ function MessagePartTool({
       value={{
         state: { expanded },
         actions: { toggle: () => setExpanded(!expanded) },
-        meta: { part },
+        meta: { part, result },
       }}
     >
-      <div data-opencode-component="Tool">{children}</div>
+      <div data-component="Tool">{children}</div>
     </ToolContext>
   );
 }
@@ -218,12 +220,12 @@ const fileToolIcons = {
 
 function MessagePartToolStatus() {
   const { meta } = useTool();
-  const status = meta.part.state.status;
-  const toolName = meta.part.tool;
+  const status = meta.part.status;
+  const toolName = meta.part.name;
 
   const fileToolConfig = fileToolIcons[toolName as keyof typeof fileToolIcons];
 
-  if (status === "running" || status === "pending") {
+  if (status === "in_progress") {
     if (fileToolConfig) {
       const Icon = fileToolConfig.icon;
       return (
@@ -248,18 +250,23 @@ function MessagePartToolStatus() {
       );
     }
     return (
-      <Check className={cn("shrink-0", toolStatus({ status }))} size={12} />
+      <Check
+        className={cn("shrink-0", toolStatus({ status: "completed" }))}
+        size={12}
+      />
     );
   }
   if (status === "error") {
-    return <span className={cn("shrink-0", toolStatus({ status }))}>✕</span>;
+    return (
+      <span className={cn("shrink-0", toolStatus({ status: "error" }))}>✕</span>
+    );
   }
   return null;
 }
 
 function MessagePartToolName() {
   const { meta } = useTool();
-  return <span className="text-text-secondary">{meta.part.tool}</span>;
+  return <span className="text-text-secondary">{meta.part.name}</span>;
 }
 
 function getString(obj: unknown, key: string): string | null {
@@ -272,7 +279,7 @@ function getString(obj: unknown, key: string): string | null {
 
 function MessagePartToolPath() {
   const { meta } = useTool();
-  const input = meta.part.state.input;
+  const input = meta.part.input;
   const path = getString(input, "filePath") ?? getString(input, "path");
   if (!path) {
     return null;
@@ -282,7 +289,7 @@ function MessagePartToolPath() {
 
 function MessagePartToolSummary() {
   const { meta } = useTool();
-  const input = meta.part.state.input;
+  const input = meta.part.input;
 
   const description =
     getString(input, "description") ??
@@ -302,13 +309,7 @@ function MessagePartToolSummary() {
 }
 
 function MessagePartToolDuration() {
-  const { meta } = useTool();
-  const status = meta.part.state.status;
-  if (status !== "completed" && status !== "error") {
-    return null;
-  }
-  const duration = meta.part.state.time.end - meta.part.state.time.start;
-  return <span className="text-text-muted">{duration}ms</span>;
+  return null;
 }
 
 function MessagePartToolChevron() {
@@ -393,127 +394,68 @@ function MessagePartToolRenderer({
   );
 }
 
-function isImageMimeType(mime: string | undefined): boolean {
-  return mime?.startsWith("image/") ?? false;
-}
-
-const MessagePartFile = memo(function MessagePartFile({
+const MessagePartFileRef = memo(function MessagePartFileRef({
   part,
 }: {
-  part: FilePart;
+  part: FileRefContentPart;
 }) {
-  const isImage = isImageMimeType(part.mime);
-
-  if (isImage && part.url) {
-    return (
-      <div className="px-4 py-3" data-opencode-component="File">
-        <Image
-          alt={part.filename ?? "Uploaded image"}
-          className="max-h-48 max-w-xs rounded border border-border"
-          height={192}
-          src={part.url}
-          unoptimized
-          width={320}
-        />
-        {part.filename && (
-          <span className="mt-1 block text-text-muted text-xs">
-            {part.filename}
-          </span>
-        )}
-      </div>
-    );
-  }
+  const action = part.action ?? "read";
+  const config = fileToolIcons[action as keyof typeof fileToolIcons] ?? {
+    icon: File,
+    color: "text-text-muted",
+  };
+  const Icon = config.icon;
 
   return (
-    <div className={actionRow()} data-opencode-component="File">
-      <span>{part.filename || part.url}</span>
-      {part.source && "path" in part.source && (
-        <span className="text-text-muted">{part.source.path}</span>
+    <div className={actionRow()} data-component="FileRef">
+      <Icon className={cn("shrink-0", config.color)} size={14} />
+      <span className="truncate">{part.path}</span>
+    </div>
+  );
+});
+
+const MessagePartImage = memo(function MessagePartImage({
+  part,
+}: {
+  part: ImageContentPart;
+}) {
+  return (
+    <div className="px-4 py-3" data-component="Image">
+      <Image
+        alt={part.filename ?? "Image"}
+        className="max-h-48 max-w-xs rounded border border-border"
+        height={192}
+        src={part.url}
+        unoptimized
+        width={320}
+      />
+      {part.filename && (
+        <span className="mt-1 block text-text-muted text-xs">
+          {part.filename}
+        </span>
       )}
-      <ChevronRight className="ml-auto text-text-muted" size={14} />
     </div>
   );
 });
 
-const metaRow = tv({
-  base: "flex items-center gap-3 px-4 py-1.5 text-text-muted text-xs",
-});
-
-function MessagePartStepStart(_props: { part: Part }) {
-  return null;
-}
-
-function MessagePartStepFinish(_props: { part: Part }) {
-  return null;
-}
-
-const MessagePartSnapshot = memo(function MessagePartSnapshot({
-  part,
-}: {
-  part: SnapshotPart;
-}) {
-  return (
-    <div className={metaRow()} data-opencode-component="Snapshot">
-      <span>Snapshot</span>
-      <span className="font-mono">{part.id.slice(0, 8)}</span>
-    </div>
-  );
-});
-
-function MessagePartPatch(_props: { part: Part }) {
-  return (
-    <div className={metaRow()} data-opencode-component="Patch">
-      <span>Patch applied</span>
-    </div>
-  );
-}
-
-function MessagePartAgent(_props: { part: Part }) {
-  return (
-    <div className={actionRow()} data-opencode-component="Agent">
-      <Loader2 className="animate-spin text-text-muted" size={14} />
-      <span>Agent task</span>
-      <ChevronRight className="ml-auto text-text-muted" size={14} />
-    </div>
-  );
-}
-
-function MessagePartSubtask({ part }: { part: SubtaskPart }) {
-  return (
-    <div className={actionRow()} data-opencode-component="Subtask">
-      <Loader2 className="animate-spin text-text-muted" size={14} />
-      <span>{part.description}</span>
-      <ChevronRight className="ml-auto text-text-muted" size={14} />
-    </div>
-  );
-}
-
-function MessagePartRetry(_props: { part: Part }) {
-  return (
-    <div
-      className={cn(actionRow(), "text-yellow-500")}
-      data-opencode-component="Retry"
-    >
-      <Loader2 className="animate-spin" size={14} />
-      <span>Retrying...</span>
-    </div>
-  );
-}
-
-function MessagePartCompaction(_props: { part: Part }) {
-  return (
-    <div className={metaRow()} data-opencode-component="Compaction">
-      <span>Context compacted</span>
-    </div>
+function findToolResult(
+  parts: ContentPart[],
+  toolCallId: string
+): ToolResultContentPart | undefined {
+  return parts.find(
+    (p): p is ToolResultContentPart =>
+      p.type === "tool_result" && p.tool_call_id === toolCallId
   );
 }
 
 function MessagePartRoot({
   part,
+  allParts,
   isStreaming,
   children,
 }: {
-  part: Part;
+  part: ContentPart;
+  allParts?: ContentPart[];
   isStreaming?: boolean;
   children?: ReactNode;
 }) {
@@ -538,17 +480,18 @@ function MessagePartRoot({
     );
   }
 
-  if (isToolPart(part)) {
-    const status = part.state.status;
-    const input = part.state.input;
-    const output = status === "completed" ? part.state.output : null;
-    const error = status === "error" ? part.state.error : null;
+  if (isToolCallPart(part)) {
+    const result = allParts ? findToolResult(allParts, part.id) : undefined;
     const isQuestionTool =
-      part.tool === "askuserquestion" || part.tool === "question";
-    const shouldAutoExpand = isQuestionTool && status === "running";
+      part.name === "askuserquestion" || part.name === "question";
+    const shouldAutoExpand = isQuestionTool && part.status === "in_progress";
 
     return (
-      <MessagePartTool defaultExpanded={shouldAutoExpand} part={part}>
+      <MessagePartTool
+        defaultExpanded={shouldAutoExpand}
+        part={part}
+        result={result}
+      >
         <MessagePartToolHeader>
           <MessagePartToolStatus />
           <MessagePartToolName />
@@ -559,52 +502,30 @@ function MessagePartRoot({
         </MessagePartToolHeader>
         <MessagePartToolDetails>
           <MessagePartToolRenderer
-            callId={part.callID}
-            error={error}
-            input={input}
-            output={output}
-            status={status}
-            tool={part.tool}
+            callId={part.id}
+            error={result?.error ?? null}
+            input={part.input}
+            output={result?.output ?? null}
+            status={
+              part.status === "in_progress" ? "running" : getToolStatus(result)
+            }
+            tool={part.name}
           />
         </MessagePartToolDetails>
       </MessagePartTool>
     );
   }
 
-  if (isFilePart(part)) {
-    return <MessagePartFile part={part} />;
+  if (isToolResultPart(part)) {
+    return null;
   }
 
-  if (isStepStartPart(part)) {
-    return <MessagePartStepStart part={part} />;
+  if (isFileRefPart(part)) {
+    return <MessagePartFileRef part={part} />;
   }
 
-  if (isStepFinishPart(part)) {
-    return <MessagePartStepFinish part={part} />;
-  }
-
-  if (isSnapshotPart(part)) {
-    return <MessagePartSnapshot part={part} />;
-  }
-
-  if (isPatchPart(part)) {
-    return <MessagePartPatch part={part} />;
-  }
-
-  if (isAgentPart(part)) {
-    return <MessagePartAgent part={part} />;
-  }
-
-  if (isSubtaskPart(part)) {
-    return <MessagePartSubtask part={part} />;
-  }
-
-  if (isRetryPart(part)) {
-    return <MessagePartRetry part={part} />;
-  }
-
-  if (isCompactionPart(part)) {
-    return <MessagePartCompaction part={part} />;
+  if (isImagePart(part)) {
+    return <MessagePartImage part={part} />;
   }
 
   return null;
@@ -630,15 +551,8 @@ const MessagePart = {
   ToolInput: MessagePartToolInput,
   ToolOutput: MessagePartToolOutput,
   ToolError: MessagePartToolError,
-  File: MessagePartFile,
-  StepStart: MessagePartStepStart,
-  StepFinish: MessagePartStepFinish,
-  Snapshot: MessagePartSnapshot,
-  Patch: MessagePartPatch,
-  Agent: MessagePartAgent,
-  Subtask: MessagePartSubtask,
-  Retry: MessagePartRetry,
-  Compaction: MessagePartCompaction,
+  FileRef: MessagePartFileRef,
+  Image: MessagePartImage,
 };
 
 export { MessagePart };

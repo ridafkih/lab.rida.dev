@@ -6,8 +6,8 @@ import { Chat, useChat } from "@/components/chat";
 import { MessagePart } from "@/components/message-part";
 import { TextAreaGroup } from "@/components/textarea-group";
 import { useModelSelection } from "@/lib/hooks";
-import { isToolPart } from "@/lib/opencode";
 import { QuestionProvider } from "@/lib/question-context";
+import { isToolCallPart } from "@/lib/sandbox-agent-types";
 import type { MessageState, SessionStatus } from "@/lib/use-agent";
 import { useSessionStatus } from "@/lib/use-session-status";
 
@@ -49,7 +49,7 @@ export function ChatTabContent({
   const status = useSessionStatus(session);
   const [rateLimitMessage, setRateLimitMessage] = useState<string | null>(null);
   const { scrollToBottom, getModelId, setModelId: setChatModelId } = useChat();
-  const { modelGroups, modelId, setModelId } = useModelSelection({
+  const { models, modelId, setModelId } = useModelSelection({
     syncTo: setChatModelId,
     currentSyncedValue: getModelId(),
   });
@@ -61,9 +61,7 @@ export function ChatTabContent({
   const hasRunningTool =
     lastMessage?.role === "assistant" &&
     lastMessage.parts.some(
-      (part) =>
-        isToolPart(part) &&
-        (part.state.status === "running" || part.state.status === "pending")
+      (part) => isToolCallPart(part) && part.status === "in_progress"
     );
 
   const isActive =
@@ -101,9 +99,13 @@ export function ChatTabContent({
       <Chat.MessageList>
         <Chat.Messages>
           {messages.flatMap((message) =>
-            message.parts.map((part) => (
-              <Chat.Block key={part.id} role={message.role}>
+            message.parts.map((part, partIndex) => (
+              <Chat.Block
+                key={`${message.id}-${partIndex}`}
+                role={message.role}
+              >
                 <MessagePart.Root
+                  allParts={message.parts}
                   isStreaming={
                     message.role === "assistant" && message === messages.at(-1)
                   }
@@ -114,11 +116,12 @@ export function ChatTabContent({
           )}
         </Chat.Messages>
         <Chat.Input isSending={isActive} statusMessage={rateLimitMessage}>
-          {modelGroups && modelId && (
+          {models && models.length > 0 && (
             <TextAreaGroup.ModelSelector
-              groups={modelGroups}
+              disabled={Boolean(session?.sandboxSessionId)}
+              models={models}
               onChange={setModelId}
-              value={modelId}
+              value={modelId ?? models[0].value}
             />
           )}
         </Chat.Input>

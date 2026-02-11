@@ -6,9 +6,11 @@ import {
   findSessionById,
   updateSessionStatus,
 } from "../repositories/session.repository";
+import { formatWorkspacePath } from "../shared/naming";
 import type { SessionStateStore } from "../state/session-state-store";
 import type { Publisher, Sandbox } from "../types/dependencies";
 import { SESSION_STATUS } from "../types/session";
+import type { SidecarProvider } from "../types/sidecar";
 import type { ProxyManager } from "./proxy.service";
 
 interface ContainerCleanupResult {
@@ -23,6 +25,7 @@ interface CleanupSessionDeps {
   publisher: Publisher;
   proxyManager: ProxyManager;
   sessionStateStore: SessionStateStore;
+  sidecarProviders: SidecarProvider[];
   cleanupSessionNetwork: (sessionId: string) => Promise<void>;
 }
 
@@ -69,6 +72,7 @@ export class SessionCleanupService {
           .filter((id): id is string => id !== null);
 
         await this.stopAndRemoveContainers(runtimeIds, sandbox.provider);
+        await this.destroySidecars(sessionId);
         await browserService.forceStopBrowser(sessionId);
 
         try {
@@ -91,6 +95,7 @@ export class SessionCleanupService {
           );
         }
 
+        await this.removeWorkspaceFiles(sessionId, sandbox);
         await deleteSession(sessionId);
         await this.deps.sessionStateStore.clear(sessionId);
         widelog.set("outcome", "success");
@@ -141,6 +146,7 @@ export class SessionCleanupService {
           );
         }
 
+        await this.removeWorkspaceFiles(sessionId, sandbox);
         widelog.set("outcome", "success");
       } catch (error) {
         widelog.set("outcome", "error");
@@ -187,6 +193,7 @@ export class SessionCleanupService {
           );
         }
 
+        await this.removeWorkspaceFiles(sessionId, sandbox);
         await deleteSession(sessionId);
         widelog.set("outcome", "success");
       } catch (error) {
@@ -197,6 +204,36 @@ export class SessionCleanupService {
         widelog.flush();
       }
     });
+  }
+
+  private async removeWorkspaceFiles(
+    sessionId: string,
+    sandbox: Sandbox
+  ): Promise<void> {
+    try {
+      const workspacePath = formatWorkspacePath(sessionId);
+      await sandbox.workspace.removeWorkspace(workspacePath);
+    } catch (error) {
+      widelog.count("error_count");
+      widelog.set(
+        "errors.workspace_cleanup",
+        error instanceof Error ? error.message : String(error)
+      );
+    }
+  }
+
+  private async destroySidecars(sessionId: string): Promise<void> {
+    for (const provider of this.deps.sidecarProviders) {
+      try {
+        await provider.destroyForSession(sessionId);
+      } catch (error) {
+        widelog.count("error_count");
+        widelog.set(
+          "errors.sidecar_cleanup",
+          error instanceof Error ? error.message : String(error)
+        );
+      }
+    }
   }
 
   private async stopAndRemoveContainers(

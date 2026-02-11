@@ -8,12 +8,10 @@ import {
   findAllSessionSummaries,
   findSessionById,
 } from "../repositories/session.repository";
+import type { SandboxAgentClientResolver } from "../sandbox-agent/client-resolver";
 import { formatProxyUrl } from "../shared/naming";
-import { resolveWorkspacePathBySession } from "../shared/path-resolver";
 import type { SessionStateStore } from "../state/session-state-store";
 import { CONTAINER_STATUS, isContainerStatus } from "../types/container";
-import type { OpencodeClient } from "../types/dependencies";
-import { getChangeType } from "../types/file";
 
 export function loadProjects() {
   return findProjectSummaries();
@@ -54,35 +52,14 @@ export async function loadSessionContainers(
   );
 }
 
-export async function loadSessionChangedFiles(
-  sessionId: string,
-  opencode: OpencodeClient
+export function loadSessionChangedFiles(
+  _sessionId: string,
+  _sandboxAgentResolver: SandboxAgentClientResolver
 ) {
-  const session = await findSessionById(sessionId);
-  if (!session?.opencodeSessionId) {
-    return [];
-  }
-
-  try {
-    const directory = await resolveWorkspacePathBySession(sessionId);
-    const response = await opencode.session.diff({
-      sessionID: session.opencodeSessionId,
-      directory,
-    });
-    if (!response.data) {
-      return [];
-    }
-
-    return response.data.map((diff) => ({
-      path: diff.file,
-      originalContent: diff.before,
-      currentContent: diff.after,
-      status: "pending" as const,
-      changeType: getChangeType(diff.before, diff.after),
-    }));
-  } catch {
-    return [];
-  }
+  // Sandbox Agent doesn't provide a direct diff API.
+  // File diffs are tracked via item.completed events with file_ref parts
+  // and published in real-time by the monitor. Return empty for snapshot.
+  return [];
 }
 
 export function loadSessionLogs(sessionId: string, logMonitor: LogMonitor) {
@@ -91,7 +68,7 @@ export function loadSessionLogs(sessionId: string, logMonitor: LogMonitor) {
 
 export async function loadSessionMetadata(
   sessionId: string,
-  opencode: OpencodeClient,
+  _sandboxAgentResolver: SandboxAgentClientResolver,
   sessionStateStore: SessionStateStore
 ) {
   const session = await findSessionById(sessionId);
@@ -101,49 +78,12 @@ export async function loadSessionMetadata(
     sessionStateStore.getLastMessage(sessionId),
   ]);
 
-  if (!session?.opencodeSessionId) {
-    return {
-      title,
-      lastMessage: storedLastMessage,
-      inferenceStatus,
-      participantCount: 0,
-    };
-  }
-
-  try {
-    const directory = await resolveWorkspacePathBySession(sessionId);
-    const response = await opencode.session.messages({
-      sessionID: session.opencodeSessionId,
-      directory,
-    });
-    const messages = response.data ?? [];
-    const lastMessage = messages.at(-1);
-    const textPart = lastMessage?.parts?.find(
-      (part: { type: string; text?: string }) =>
-        part.type === "text" && part.text
-    );
-
-    const text = textPart && "text" in textPart && textPart.text;
-
-    if (text) {
-      await sessionStateStore.setLastMessage(sessionId, text);
-      return { title, lastMessage: text, inferenceStatus, participantCount: 0 };
-    }
-
-    return {
-      title,
-      lastMessage: storedLastMessage,
-      inferenceStatus,
-      participantCount: 0,
-    };
-  } catch {
-    return {
-      title,
-      lastMessage: storedLastMessage,
-      inferenceStatus,
-      participantCount: 0,
-    };
-  }
+  return {
+    title,
+    lastMessage: storedLastMessage,
+    inferenceStatus,
+    participantCount: 0,
+  };
 }
 
 type ChannelName = keyof AppSchema["channels"];
@@ -151,7 +91,7 @@ type SnapshotLoader = (session: string | null) => Promise<unknown>;
 
 export interface SnapshotLoaderDeps {
   browserService: BrowserService;
-  opencode: OpencodeClient;
+  sandboxAgentResolver: SandboxAgentClientResolver;
   logMonitor: LogMonitor;
   proxyBaseUrl: string;
   sessionStateStore: SessionStateStore;
@@ -162,7 +102,7 @@ export function createSnapshotLoaders(
 ): Record<ChannelName, SnapshotLoader> {
   const {
     browserService,
-    opencode,
+    sandboxAgentResolver,
     logMonitor,
     proxyBaseUrl,
     sessionStateStore,
@@ -173,7 +113,7 @@ export function createSnapshotLoaders(
     sessions: () => loadSessions(),
     sessionMetadata: (session) =>
       session
-        ? loadSessionMetadata(session, opencode, sessionStateStore)
+        ? loadSessionMetadata(session, sandboxAgentResolver, sessionStateStore)
         : Promise.resolve(null),
     sessionContainers: (session) =>
       session
@@ -183,7 +123,9 @@ export function createSnapshotLoaders(
     sessionPromptEngineers: () => Promise.resolve([]),
     sessionChangedFiles: (session) =>
       session
-        ? loadSessionChangedFiles(session, opencode)
+        ? Promise.resolve(
+            loadSessionChangedFiles(session, sandboxAgentResolver)
+          )
         : Promise.resolve(null),
     sessionBranches: () => Promise.resolve([]),
     sessionLinks: () => Promise.resolve([]),

@@ -35,7 +35,7 @@ function mapToIndicatorStatus(
 function OrchestratorPrompt() {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  const { modelGroups, modelId, setModelId } = useModelSelection();
+  const { models, modelId, setModelId } = useModelSelection();
   const { submit, state } = useOrchestrate();
   const indicatorStatus = mapToIndicatorStatus(state.status);
 
@@ -72,11 +72,11 @@ function OrchestratorPrompt() {
         <TextAreaGroup.Frame>
           <TextAreaGroup.Input />
           <TextAreaGroup.Toolbar>
-            {modelGroups && modelId && (
+            {models && models.length > 0 && (
               <TextAreaGroup.ModelSelector
-                groups={modelGroups}
+                models={models}
                 onChange={setModelId}
-                value={modelId}
+                value={modelId ?? models[0].value}
               />
             )}
             <TextAreaGroup.Submit />

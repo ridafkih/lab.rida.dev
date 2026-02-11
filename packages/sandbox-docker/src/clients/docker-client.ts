@@ -25,6 +25,7 @@ import { DockerImageManager } from "../modules/docker-image-manager";
 import { DockerVolumeManager } from "../modules/docker-volume-manager";
 import { ExecOperations } from "../modules/exec-operations";
 import { NetworkOperations } from "../modules/network-operations";
+import { WorkspaceUtilityContainer } from "../modules/workspace-utility-container";
 import type { DockerClientOptions } from "../types/client";
 
 export class DockerClient implements SandboxProvider, ContainerEventStream {
@@ -187,5 +188,18 @@ export class DockerClient implements SandboxProvider, ContainerEventStream {
     options?: ContainerEventStreamOptions
   ): AsyncGenerator<ContainerEvent> {
     return this.eventStream.streamContainerEvents(options);
+  }
+
+  createWorkspaceUtilityContainer(
+    workspacesVolume: string,
+    workspacesMount: string
+  ): WorkspaceUtilityContainer {
+    return new WorkspaceUtilityContainer(
+      this.containerManager,
+      this.imageManager,
+      this.execOps,
+      workspacesVolume,
+      workspacesMount
+    );
   }
 }

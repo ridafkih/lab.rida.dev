@@ -7,7 +7,14 @@ import { createContext, type ReactNode, use } from "react";
 import useSWR from "swr";
 import { tv } from "tailwind-variants";
 import { cn } from "@/lib/cn";
-import { createClient } from "@/lib/use-session-client";
+
+function getApiUrl(): string {
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL;
+  if (!apiUrl) {
+    throw new Error("NEXT_PUBLIC_API_URL must be set");
+  }
+  return apiUrl;
+}
 
 interface Provider {
   id: string;
@@ -46,20 +53,24 @@ function useProvidersList() {
 }
 
 async function fetchProvidersList(): Promise<ProvidersListData> {
-  const client = createClient();
-  const response = await client.provider.list();
+  const apiUrl = getApiUrl();
+  const response = await fetch(`${apiUrl}/providers`);
 
-  const providersData = response.data;
+  if (!response.ok) {
+    throw new Error("Failed to fetch providers");
+  }
+
+  const providersData = await response.json();
   if (!providersData) {
     throw new Error("Failed to fetch providers");
   }
 
   const providers = providersData.all
-    .map((provider) => ({
+    .map((provider: { id: string; name: string }) => ({
       id: provider.id,
       name: provider.name,
     }))
-    .sort((a, b) => a.name.localeCompare(b.name));
+    .sort((a: Provider, b: Provider) => a.name.localeCompare(b.name));
 
   return {
     providers,

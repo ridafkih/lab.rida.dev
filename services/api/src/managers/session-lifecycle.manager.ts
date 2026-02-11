@@ -8,6 +8,7 @@ import { SessionCleanupService } from "../services/session-cleanup.service";
 import type { DeferredPublisher } from "../shared/deferred-publisher";
 import type { SessionStateStore } from "../state/session-state-store";
 import type { Sandbox } from "../types/dependencies";
+import type { SidecarProvider } from "../types/sidecar";
 import type { BrowserServiceManager } from "./browser-service.manager";
 
 export class SessionLifecycleManager {
@@ -18,19 +19,22 @@ export class SessionLifecycleManager {
   private readonly browserServiceManager: BrowserServiceManager;
   private readonly deferredPublisher: DeferredPublisher;
   private readonly sessionStateStore: SessionStateStore;
+  private readonly sidecarProviders: SidecarProvider[];
 
   constructor(
     sandbox: Sandbox,
     proxyManager: ProxyManager,
     browserServiceManager: BrowserServiceManager,
     deferredPublisher: DeferredPublisher,
-    sessionStateStore: SessionStateStore
+    sessionStateStore: SessionStateStore,
+    sidecarProviders: SidecarProvider[] = []
   ) {
     this.sandbox = sandbox;
     this.proxyManager = proxyManager;
     this.browserServiceManager = browserServiceManager;
     this.deferredPublisher = deferredPublisher;
     this.sessionStateStore = sessionStateStore;
+    this.sidecarProviders = sidecarProviders;
   }
 
   private getDeps() {
@@ -39,6 +43,7 @@ export class SessionLifecycleManager {
       publisher: this.deferredPublisher.get(),
       proxyManager: this.proxyManager,
       sessionStateStore: this.sessionStateStore,
+      sidecarProviders: this.sidecarProviders,
       cleanupSessionNetwork: (sessionId: string) =>
         cleanupSessionNetwork(sessionId, this.sandbox),
     });
@@ -62,6 +67,25 @@ export class SessionLifecycleManager {
       this.browserServiceManager.service,
       this.getDeps()
     );
+
+    const sidecarResults = await Promise.allSettled(
+      this.sidecarProviders.map((provider) =>
+        provider.spawnForSession(sessionId)
+      )
+    );
+
+    for (const result of sidecarResults) {
+      if (result.status === "rejected") {
+        const error = result.reason;
+        const message = error instanceof Error ? error.message : String(error);
+        const stack = error instanceof Error ? error.stack : undefined;
+        console.error(
+          `[SessionLifecycle] Sidecar spawn failed for session ${sessionId}:`,
+          message,
+          stack
+        );
+      }
+    }
   }
 
   scheduleInitializeSession(

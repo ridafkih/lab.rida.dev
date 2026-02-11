@@ -1,6 +1,5 @@
 "use client";
 
-import type { FileContent } from "@opencode-ai/sdk/v2/client";
 import { useEffect, useReducer, useRef } from "react";
 import useSWR from "swr";
 import type {
@@ -9,10 +8,20 @@ import type {
   FileNode,
   FileStatus,
 } from "@/components/review";
+import { getAgentApiUrl } from "./sandbox-agent-session";
 import { type ChangedFile, useFileStatuses } from "./use-file-statuses";
-import { createSessionClient, useSessionClient } from "./use-session-client";
 
-type Patch = NonNullable<FileContent["patch"]>;
+interface Patch {
+  oldFileName: string;
+  newFileName: string;
+  hunks: {
+    oldStart: number;
+    oldLines: number;
+    newStart: number;
+    newLines: number;
+    lines: string[];
+  }[];
+}
 
 interface FileBrowserState {
   expandedPaths: Set<string>;
@@ -33,7 +42,11 @@ type FileBrowserAction =
   | { type: "REMOVE_LOADING_PATH"; path: string }
   | { type: "SELECT_FILE"; path: string }
   | { type: "CLEAR_FILE_SELECTION" }
-  | { type: "SET_PREVIEW_CONTENT"; content: string | null; patch: Patch | null }
+  | {
+      type: "SET_PREVIEW_CONTENT";
+      content: string | null;
+      patch: Patch | null;
+    }
   | { type: "SET_PREVIEW_LOADING"; loading: boolean };
 
 function getInitialState(): FileBrowserState {
@@ -147,20 +160,71 @@ function buildStatusMaps(files: ChangedFile[]): {
   return { statuses, dirsWithChanges };
 }
 
-async function fetchRootFiles(sessionId: string): Promise<FileNode[]> {
-  const client = createSessionClient(sessionId);
-  const response = await client.file.list({ path: "." });
+async function fetchFileList(
+  sessionId: string,
+  path: string
+): Promise<FileNode[]> {
+  const apiUrl = getAgentApiUrl();
+  const response = await fetch(
+    `${apiUrl}/sandbox-agent/files/list?sessionId=${encodeURIComponent(sessionId)}&path=${encodeURIComponent(path)}`,
+    {
+      headers: { "X-Lab-Session-Id": sessionId },
+    }
+  );
 
-  if (response.data) {
-    return response.data.map((node) => ({
-      name: node.name,
-      path: node.path,
-      type: node.type,
-      ignored: node.ignored,
-    }));
+  if (!response.ok) {
+    return [];
+  }
+
+  const data = await response.json();
+  if (Array.isArray(data)) {
+    return data.map(
+      (node: {
+        name: string;
+        path: string;
+        type: string;
+        ignored?: boolean;
+      }) => ({
+        name: node.name,
+        path: node.path,
+        type: node.type as "file" | "directory",
+        ignored: node.ignored,
+      })
+    );
   }
 
   return [];
+}
+
+async function fetchFileContent(
+  sessionId: string,
+  path: string
+): Promise<{ content: string | null; patch: Patch | null }> {
+  const apiUrl = getAgentApiUrl();
+  const response = await fetch(
+    `${apiUrl}/sandbox-agent/files/read?sessionId=${encodeURIComponent(sessionId)}&path=${encodeURIComponent(path)}`,
+    {
+      headers: { "X-Lab-Session-Id": sessionId },
+    }
+  );
+
+  if (!response.ok) {
+    return { content: null, patch: null };
+  }
+
+  const data = await response.json();
+  if (data && data.type === "text") {
+    return {
+      content: data.content ?? null,
+      patch: data.patch ?? null,
+    };
+  }
+
+  return { content: null, patch: null };
+}
+
+function fetchRootFiles(sessionId: string): Promise<FileNode[]> {
+  return fetchFileList(sessionId, ".");
 }
 
 export function useFileBrowser(sessionId: string | null): {
@@ -175,7 +239,6 @@ export function useFileBrowser(sessionId: string | null): {
     null,
     getInitialState
   );
-  const client = useSessionClient(sessionId);
 
   const { data: rootNodes, isLoading: rootLoading } = useSWR<FileNode[]>(
     sessionId && sessionId !== "new" ? `file-browser-root-${sessionId}` : null,
@@ -207,21 +270,12 @@ export function useFileBrowser(sessionId: string | null): {
       return;
     }
 
-    if (!browserState.loadedContents.has(path) && client) {
+    if (!browserState.loadedContents.has(path) && sessionId) {
       dispatch({ type: "ADD_LOADING_PATH", path });
 
       try {
-        const response = await client.file.list({ path });
-
-        if (response.data) {
-          const nodes: FileNode[] = response.data.map((node) => ({
-            name: node.name,
-            path: node.path,
-            type: node.type,
-            ignored: node.ignored,
-          }));
-          dispatch({ type: "SET_LOADED_CONTENTS", path, contents: nodes });
-        }
+        const nodes = await fetchFileList(sessionId, path);
+        dispatch({ type: "SET_LOADED_CONTENTS", path, contents: nodes });
       } catch (error) {
         console.error(error);
       } finally {
@@ -233,23 +287,18 @@ export function useFileBrowser(sessionId: string | null): {
   };
 
   const selectFile = async (path: string) => {
-    if (!client) {
+    if (!sessionId) {
       return;
     }
 
     dispatch({ type: "SELECT_FILE", path });
 
     try {
-      const response = await client.file.read({ path });
-
-      if (!response.data || response.data.type !== "text") {
-        return;
-      }
-
+      const { content, patch } = await fetchFileContent(sessionId, path);
       dispatch({
         type: "SET_PREVIEW_CONTENT",
-        content: response.data.content,
-        patch: response.data.patch ?? null,
+        content,
+        patch,
       });
     } catch (error) {
       console.error(error);
@@ -263,25 +312,17 @@ export function useFileBrowser(sessionId: string | null): {
   };
 
   const loadDirectoryContents = async (dirPath: string) => {
-    if (!client || browserState.loadedContents.has(dirPath)) {
+    if (!sessionId || browserState.loadedContents.has(dirPath)) {
       return;
     }
 
     try {
-      const response = await client.file.list({ path: dirPath });
-      if (response.data) {
-        const nodes: FileNode[] = response.data.map((node) => ({
-          name: node.name,
-          path: node.path,
-          type: node.type,
-          ignored: node.ignored,
-        }));
-        dispatch({
-          type: "SET_LOADED_CONTENTS",
-          path: dirPath,
-          contents: nodes,
-        });
-      }
+      const nodes = await fetchFileList(sessionId, dirPath);
+      dispatch({
+        type: "SET_LOADED_CONTENTS",
+        path: dirPath,
+        contents: nodes,
+      });
     } catch (error) {
       console.error(error);
     }

@@ -2,9 +2,10 @@ import { tool } from "ai";
 import { z } from "zod";
 import { widelog } from "../../logging";
 import { findSessionById } from "../../repositories/session.repository";
+import type { SandboxAgentClientResolver } from "../../sandbox-agent/client-resolver";
 import { getErrorMessage } from "../../shared/errors";
 import type { SessionStateStore } from "../../state/session-state-store";
-import type { OpencodeClient, Publisher } from "../../types/dependencies";
+import type { Publisher } from "../../types/dependencies";
 import { sendMessageToSession } from "../message-sender";
 
 const inputSchema = z.object({
@@ -14,7 +15,7 @@ const inputSchema = z.object({
 
 interface SendMessageToolContext {
   modelId?: string;
-  opencode: OpencodeClient;
+  sandboxAgentResolver: SandboxAgentClientResolver;
   publisher: Publisher;
   sessionStateStore: SessionStateStore;
 }
@@ -33,17 +34,16 @@ export function createSendMessageToSessionTool(
         return { success: false, error: "Session not found" };
       }
 
-      if (!session.opencodeSessionId) {
+      if (!session.sandboxSessionId) {
         return { success: false, error: "Session is not ready yet" };
       }
 
       try {
         await sendMessageToSession({
           sessionId,
-          opencodeSessionId: session.opencodeSessionId,
+          sandboxSessionId: session.sandboxSessionId,
           content: message,
-          modelId: context.modelId,
-          opencode: context.opencode,
+          sandboxAgentResolver: context.sandboxAgentResolver,
           publisher: context.publisher,
           sessionStateStore: context.sessionStateStore,
         });

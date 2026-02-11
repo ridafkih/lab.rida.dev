@@ -7,7 +7,6 @@ import {
   DockerWorkspaceManager,
 } from "@lab/sandbox-docker";
 import { Sandbox } from "@lab/sandbox-sdk";
-import { createOpencodeClient } from "@opencode-ai/sdk/v2/client";
 import { RedisClient } from "bun";
 import { createAuth } from "./auth";
 import { ApiServer } from "./clients/server";
@@ -19,8 +18,10 @@ import { SessionLifecycleManager } from "./managers/session-lifecycle.manager";
 import { ContainerMonitor } from "./monitors/container.monitor";
 import { LogMonitor } from "./monitors/log.monitor";
 import { NetworkReconcileMonitor } from "./monitors/network-reconcile.monitor";
-import { OpenCodeMonitor } from "./monitors/opencode.monitor";
+import { SandboxAgentMonitor } from "./monitors/sandbox-agent.monitor";
 import { createDefaultPromptService } from "./prompts/builder";
+import { SandboxAgentClientResolver } from "./sandbox-agent/client-resolver";
+import { SandboxAgentContainerManager } from "./sandbox-agent/container-manager";
 import { ProxyManager } from "./services/proxy.service";
 import { DeferredPublisher } from "./shared/deferred-publisher";
 import { SessionStateStore } from "./state/session-state-store";
@@ -35,16 +36,25 @@ export const setup = (({ env }) => {
   const dockerClient = new DockerClient();
   const sharedContainerNames = [
     env.BROWSER_CONTAINER_NAME,
-    env.OPENCODE_CONTAINER_NAME,
     env.PROXY_CONTAINER_NAME,
   ];
 
+  const workspaceUtilityContainer =
+    dockerClient.createWorkspaceUtilityContainer(
+      "lab_session_workspaces",
+      "/workspaces"
+    );
+
   const sandbox = new Sandbox(dockerClient, {
     network: new DockerNetworkManager(dockerClient),
-    workspace: new DockerWorkspaceManager(dockerClient, {
-      workspacesVolume: "lab_session_workspaces",
-      workspacesMount: "/workspaces",
-    }),
+    workspace: new DockerWorkspaceManager(
+      dockerClient,
+      {
+        workspacesVolume: "lab_session_workspaces",
+        workspacesMount: "/workspaces",
+      },
+      workspaceUtilityContainer
+    ),
     runtime: new DockerRuntimeManager(dockerClient, {
       workspacesSource: "lab_session_workspaces",
       workspacesTarget: "/workspaces",
@@ -58,7 +68,13 @@ export const setup = (({ env }) => {
     }),
   });
 
-  const opencode = createOpencodeClient({ baseUrl: env.OPENCODE_URL });
+  const sandboxAgentContainerManager = new SandboxAgentContainerManager(
+    dockerClient,
+    env.ANTHROPIC_API_KEY
+  );
+  const sandboxAgentResolver = new SandboxAgentClientResolver(
+    sandboxAgentContainerManager
+  );
 
   const redis = new RedisClient(env.REDIS_URL);
   const sessionStateStore = new SessionStateStore(redis);
@@ -80,18 +96,21 @@ export const setup = (({ env }) => {
     deferredPublisher
   );
 
+  const sidecarProviders = [sandboxAgentContainerManager];
+
   const sessionLifecycle = new SessionLifecycleManager(
     sandbox,
     proxyManager,
     browserService,
     deferredPublisher,
-    sessionStateStore
+    sessionStateStore,
+    sidecarProviders
   );
 
   const logMonitor = new LogMonitor(sandbox, deferredPublisher);
   const containerMonitor = new ContainerMonitor(sandbox, deferredPublisher);
-  const openCodeMonitor = new OpenCodeMonitor(
-    opencode,
+  const sandboxAgentMonitor = new SandboxAgentMonitor(
+    sandboxAgentResolver,
     deferredPublisher,
     sessionStateStore
   );
@@ -117,7 +136,6 @@ export const setup = (({ env }) => {
   const server = new ApiServer(
     {
       proxyBaseUrl: env.PROXY_BASE_URL,
-      opencodeUrl: env.OPENCODE_URL,
       github: {
         clientId: env.GITHUB_CLIENT_ID,
         clientSecret: env.GITHUB_CLIENT_SECRET,
@@ -132,7 +150,8 @@ export const setup = (({ env }) => {
       poolManager,
       logMonitor,
       sandbox,
-      opencode,
+      sandboxAgentResolver,
+      sandboxAgentContainerManager,
       promptService,
       imageStore,
       widelog,
@@ -149,11 +168,10 @@ export const setup = (({ env }) => {
     poolManager,
     logMonitor,
     containerMonitor,
-    openCodeMonitor,
+    sandboxAgentMonitor,
     networkReconcileMonitor: new NetworkReconcileMonitor(sandbox, [
       env.BROWSER_CONTAINER_NAME,
       env.PROXY_CONTAINER_NAME,
-      env.OPENCODE_CONTAINER_NAME,
     ]),
   };
 }) satisfies SetupFunction;

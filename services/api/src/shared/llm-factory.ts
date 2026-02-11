@@ -1,4 +1,5 @@
 import { createAnthropic } from "@ai-sdk/anthropic";
+import { createMoonshotAI } from "@ai-sdk/moonshotai";
 import { createOpenAI } from "@ai-sdk/openai";
 import type { LanguageModel } from "ai";
 import { ConfigurationError } from "./errors";
@@ -48,6 +49,10 @@ export function createLanguageModel(config: LlmModelConfig): LanguageModel {
     case "openai": {
       const openai = createOpenAI({ apiKey: config.apiKey });
       return openai(config.model);
+    }
+    case "moonshotai": {
+      const moonshotai = createMoonshotAI({ apiKey: config.apiKey });
+      return moonshotai(config.model);
     }
     default:
       throw new ConfigurationError(

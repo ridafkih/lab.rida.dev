@@ -5,7 +5,14 @@ import { useEffect, useRef, useState } from "react";
 import useSWR, { useSWRConfig } from "swr";
 import { Button } from "@/components/button";
 import { FormInput } from "@/components/form-input";
-import { createClient } from "@/lib/use-session-client";
+
+function getApiUrl(): string {
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL;
+  if (!apiUrl) {
+    throw new Error("NEXT_PUBLIC_API_URL must be set");
+  }
+  return apiUrl;
+}
 
 interface AuthMethod {
   type: "oauth" | "api";
@@ -21,20 +28,26 @@ interface ProviderData {
 }
 
 async function fetchProviderData(providerId: string): Promise<ProviderData> {
-  const client = createClient();
+  const apiUrl = getApiUrl();
   const [providersResponse, authMethodsResponse] = await Promise.all([
-    client.provider.list(),
-    client.provider.auth(),
+    fetch(`${apiUrl}/providers`),
+    fetch(`${apiUrl}/providers/auth`),
   ]);
 
-  const providersData = providersResponse.data;
-  const authMethodsData = authMethodsResponse.data;
+  if (!(providersResponse.ok && authMethodsResponse.ok)) {
+    throw new Error("Failed to fetch provider data");
+  }
+
+  const providersData = await providersResponse.json();
+  const authMethodsData = await authMethodsResponse.json();
 
   if (!(providersData && authMethodsData)) {
     throw new Error("Failed to fetch provider data");
   }
 
-  const provider = providersData.all.find((p) => p.id === providerId);
+  const provider = providersData.all.find(
+    (p: { id: string }) => p.id === providerId
+  );
   if (!provider) {
     throw new Error("Provider not found");
   }
@@ -98,15 +111,20 @@ function ApiKeyForm({ providerId, refetch }: ApiKeyFormProps) {
     setError(null);
 
     try {
-      const client = createClient();
-      await client.auth.set({
-        providerID: providerId,
-        auth: {
-          type: "api",
-          key: apiKey,
-        },
+      const apiUrl = getApiUrl();
+      const response = await fetch(`${apiUrl}/providers/auth`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          providerID: providerId,
+          auth: { type: "api", key: apiKey },
+        }),
       });
-      await client.global.dispose();
+
+      if (!response.ok) {
+        throw new Error("Failed to save API key");
+      }
+
       setApiKey("");
       refetch();
       mutate("providers-list");
@@ -161,18 +179,23 @@ function EndpointForm({ providerId, refetch }: EndpointFormProps) {
     setError(null);
 
     try {
-      const client = createClient();
-      await client.config.update({
-        config: {
+      const apiUrl = getApiUrl();
+      const response = await fetch(`${apiUrl}/providers/config`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
           provider: {
             [providerId]: {
-              options: {
-                baseURL: endpoint,
-              },
+              options: { baseURL: endpoint },
             },
           },
-        },
+        }),
       });
+
+      if (!response.ok) {
+        throw new Error("Failed to save endpoint");
+      }
+
       setEndpoint("");
       refetch();
     } catch (err) {
@@ -260,14 +283,17 @@ function OAuthButton({ providerId, authMethods, refetch }: OAuthButtonProps) {
       attempts++;
 
       try {
-        const client = createClient();
-        const response = await client.provider.list();
-        const isConnected = response.data?.connected.includes(providerId);
+        const apiUrl = getApiUrl();
+        const response = await fetch(`${apiUrl}/providers`);
+        if (response.ok) {
+          const data = await response.json();
+          const isConnected = data?.connected?.includes(providerId);
 
-        if (isConnected) {
-          stopPolling();
-          refreshAll();
-          return;
+          if (isConnected) {
+            stopPolling();
+            refreshAll();
+            return;
+          }
         }
       } catch {
         // Continue polling on error
@@ -283,13 +309,21 @@ function OAuthButton({ providerId, authMethods, refetch }: OAuthButtonProps) {
     setError(null);
 
     try {
-      const client = createClient();
-      const response = await client.provider.oauth.authorize({
-        providerID: providerId,
-        method: oauthMethodIndex,
+      const apiUrl = getApiUrl();
+      const response = await fetch(`${apiUrl}/providers/oauth/authorize`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          providerID: providerId,
+          method: oauthMethodIndex,
+        }),
       });
 
-      const oauthData = response.data;
+      if (!response.ok) {
+        throw new Error("Failed to start OAuth flow");
+      }
+
+      const oauthData = await response.json();
       if (!oauthData) {
         throw new Error("Failed to start OAuth flow");
       }

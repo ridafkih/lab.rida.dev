@@ -9,6 +9,7 @@
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^3.0.39",
+    "@ai-sdk/moonshotai": "^2.0.3",
     "@ai-sdk/openai": "^3.0.26",
     "@lab/browser-protocol": "workspace:*",
     "@lab/context": "workspace:*",
@@ -23,7 +24,6 @@
     "@lab/sandbox-sdk": "workspace:*",
     "@lab/subagents": "workspace:*",
     "@lab/widelogger": "workspace:*",
-    "@opencode-ai/sdk": "^1.1.53",
     "ai": "^6.0.77",
     "arktype": "^2.1.29",
     "better-auth": "^1.4.18",

@@ -19,7 +19,7 @@ import { SESSION_STATUS } from "../types/session";
 import {
   buildContainerNodes,
   type PreparedContainer,
-  prepareContainerData,
+  prepareAllContainerData,
 } from "./container-preparer";
 import { buildEnvironmentVariables } from "./environment-builder";
 import { createSessionNetwork } from "./network";
@@ -175,10 +175,10 @@ export function initializeSessionContainers(
 
       const networkId = await createSessionNetwork(sessionId, sandbox);
 
-      const preparedContainers = await Promise.all(
-        containerDefinitions.map((definition) =>
-          prepareContainerData(sessionId, definition, sandbox)
-        )
+      const preparedContainers = await prepareAllContainerData(
+        sessionId,
+        containerDefinitions,
+        sandbox
       );
 
       const preparedByContainerId = new Map<string, PreparedContainer>();

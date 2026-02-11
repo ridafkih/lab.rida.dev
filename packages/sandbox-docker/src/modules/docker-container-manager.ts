@@ -114,6 +114,7 @@ export class DockerContainerManager implements ContainerManager {
       Env: formatEnvVars(options.env),
       Labels: options.labels,
       ExposedPorts: orUndefinedIfEmpty(exposedPorts),
+      platform: options.platform,
       HostConfig: {
         PortBindings: orUndefinedIfEmpty(portBindings),
         Binds: orUndefinedIfEmptyArray(volumeBinds),

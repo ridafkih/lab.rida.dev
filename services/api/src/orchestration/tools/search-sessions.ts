@@ -1,9 +1,11 @@
 import { tool } from "ai";
 import { z } from "zod";
 import { searchSessionsWithProject } from "../../repositories/session.repository";
-import { resolveWorkspacePathBySession } from "../../shared/path-resolver";
-import type { OpencodeClient } from "../../types/dependencies";
-import { extractTextFromParts, isOpencodeMessage } from "../opencode-messages";
+import type { SandboxAgentClientResolver } from "../../sandbox-agent/client-resolver";
+import {
+  fetchSessionMessages,
+  type ReconstructedMessage,
+} from "../sandbox-agent-messages";
 
 const inputSchema = z.object({
   query: z.string().describe("The search query to find relevant sessions"),
@@ -20,23 +22,18 @@ interface ScoredResult {
 }
 
 function scoreMessageContent(
-  rawMessages: unknown,
+  messages: ReconstructedMessage[],
   queryLower: string,
   queryLength: number
 ): ScoredResult | null {
-  const messages = Array.isArray(rawMessages)
-    ? rawMessages.filter(isOpencodeMessage)
-    : [];
-
   for (const msg of messages) {
-    const text = extractTextFromParts(msg.parts);
-    const textLower = text.toLowerCase();
+    const textLower = msg.content.toLowerCase();
     if (textLower.includes(queryLower)) {
       const index = textLower.indexOf(queryLower);
       const start = Math.max(0, index - 50);
-      const end = Math.min(text.length, index + queryLength + 50);
+      const end = Math.min(msg.content.length, index + queryLength + 50);
       return {
-        relevantContent: `...${text.slice(start, end)}...`,
+        relevantContent: `...${msg.content.slice(start, end)}...`,
         score: 1.0,
       };
     }
@@ -46,7 +43,7 @@ function scoreMessageContent(
 
 function scoreRow(
   row: { title: string | null; projectName: string },
-  rawMessages: unknown,
+  messages: ReconstructedMessage[] | null,
   queryLower: string,
   queryLength: number
 ): ScoredResult {
@@ -62,9 +59,9 @@ function scoreRow(
     score = Math.max(score, 0.6);
   }
 
-  if (rawMessages) {
+  if (messages) {
     const messageResult = scoreMessageContent(
-      rawMessages,
+      messages,
       queryLower,
       queryLength
     );
@@ -77,7 +74,9 @@ function scoreRow(
   return { relevantContent, score };
 }
 
-export function createSearchSessionsTool(opencode: OpencodeClient) {
+export function createSearchSessionsTool(
+  sandboxAgentResolver: SandboxAgentClientResolver
+) {
   return tool({
     description:
       "Searches across session titles and conversation content to find relevant sessions. Returns matching sessions with relevant content snippets.",
@@ -89,16 +88,15 @@ export function createSearchSessionsTool(opencode: OpencodeClient) {
       const rows = await searchSessionsWithProject({ query, limit });
 
       const messagePromises = rows.map(async (row) => {
-        if (!row.opencodeSessionId) {
+        if (!row.sandboxSessionId) {
           return null;
         }
         try {
-          const directory = await resolveWorkspacePathBySession(row.id);
-          const response = await opencode.session.messages({
-            sessionID: row.opencodeSessionId,
-            directory,
-          });
-          return response.data ?? [];
+          return await fetchSessionMessages(
+            sandboxAgentResolver,
+            row.id,
+            row.sandboxSessionId
+          );
         } catch {
           return null;
         }
@@ -122,7 +120,7 @@ export function createSearchSessionsTool(opencode: OpencodeClient) {
 
         const { relevantContent, score } = scoreRow(
           row,
-          allMessages[i],
+          allMessages[i] ?? null,
           queryLower,
           query.length
         );

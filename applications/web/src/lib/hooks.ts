@@ -19,20 +19,22 @@ interface UseModelSelectionOptions {
   currentSyncedValue?: string | null;
 }
 
+export interface ModelOption {
+  label: string;
+  value: string;
+}
+
 export function useModelSelection(options?: UseModelSelectionOptions) {
-  const { data: modelGroups, isLoading } = useModels();
+  const { data: models, isLoading } = useModels();
   const [preferredModel, setPreferredModel] = usePreferredModel();
 
   const modelId = (() => {
-    if (!modelGroups) {
+    if (!models) {
       return null;
     }
 
-    const allModels = modelGroups.flatMap(({ models }) => models);
-    const validModel = allModels.find(({ value }) => value === preferredModel);
-    const fallback = modelGroups[0]?.models[0];
-
-    return validModel?.value ?? fallback?.value ?? null;
+    const validModel = models.find(({ value }) => value === preferredModel);
+    return validModel?.value ?? models[0]?.value ?? null;
   })();
 
   useEffect(() => {
@@ -46,41 +48,20 @@ export function useModelSelection(options?: UseModelSelectionOptions) {
     options?.syncTo?.(value);
   };
 
-  return { modelGroups, modelId, setModelId, isLoading };
+  return { models, modelId, setModelId, isLoading };
 }
 
 export function useProjects() {
   return useSWR("projects", () => api.projects.list());
 }
 
-interface ModelGroup {
-  provider: string;
-  models: { label: string; value: string }[];
-}
-
 function useModels() {
   return useSWR("models", async () => {
     const response = await api.models.list();
-
-    const groupMap = new Map<string, ModelGroup>();
-    for (const model of response.models) {
-      const existing = groupMap.get(model.providerId);
-      const entry = {
-        label: model.name,
-        value: `${model.providerId}/${model.modelId}`,
-      };
-
-      if (existing) {
-        existing.models.push(entry);
-      } else {
-        groupMap.set(model.providerId, {
-          provider: model.providerName,
-          models: [entry],
-        });
-      }
-    }
-
-    return Array.from(groupMap.values());
+    return response.models.map((model) => ({
+      label: model.name,
+      value: model.modelId,
+    }));
   });
 }
 
@@ -131,7 +112,7 @@ export function useCreateSession() {
       id: OPTIMISTIC_SESSION_ID,
       projectId,
       title: title ?? null,
-      opencodeSessionId: null,
+      sandboxSessionId: null,
       status: "creating",
       createdAt: now,
       updatedAt: now,

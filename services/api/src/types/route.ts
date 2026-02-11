@@ -1,5 +1,6 @@
 import type { RouteHandler } from "@lab/router";
 import type {
+  AuthContext,
   BrowserContext,
   GithubContext,
   InfraContext,
@@ -10,6 +11,7 @@ import type {
 } from "./contexts";
 
 export type {
+  AuthContext,
   BrowserContext,
   GithubContext,
   InfraContext,
@@ -17,6 +19,7 @@ export type {
 } from "./contexts";
 
 interface RouteContextMap {
+  auth: AuthContext;
   browser: BrowserContext;
   session: SessionContext;
   infra: InfraContext;
@@ -35,7 +38,8 @@ type UnionToIntersection<T> = (
   : never;
 
 export interface RouteContext
-  extends BrowserContext,
+  extends AuthContext,
+    BrowserContext,
     SessionContext,
     InfraContext,
     MonitorContext,

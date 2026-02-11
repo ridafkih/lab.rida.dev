@@ -15,9 +15,10 @@ import {
   findProjectById,
 } from "../repositories/project.repository";
 import { findSessionById } from "../repositories/session.repository";
+import type { SandboxAgentClientResolver } from "../sandbox-agent/client-resolver";
 import { NotFoundError } from "../shared/errors";
 import type { SessionStateStore } from "../state/session-state-store";
-import type { OpencodeClient, Publisher } from "../types/dependencies";
+import type { Publisher } from "../types/dependencies";
 import { initiateConversation } from "./conversation-initiator";
 import { sendMessageToSession } from "./message-sender";
 import {
@@ -36,7 +37,7 @@ interface OrchestrationInput {
   browserService: BrowserServiceManager;
   sessionLifecycle: SessionLifecycleManager;
   poolManager: PoolManager;
-  opencode: OpencodeClient;
+  sandboxAgentResolver: SandboxAgentClientResolver;
   publisher: Publisher;
   sessionStateStore: SessionStateStore;
 }
@@ -55,7 +56,7 @@ interface OrchestrationContext {
   browserService: BrowserServiceManager;
   sessionLifecycle: SessionLifecycleManager;
   poolManager: PoolManager;
-  opencode: OpencodeClient;
+  sandboxAgentResolver: SandboxAgentClientResolver;
   publisher: Publisher;
   sessionStateStore: SessionStateStore;
 }
@@ -160,7 +161,7 @@ async function startConversation(
     sessionId,
     task: ctx.content,
     modelId: ctx.modelId,
-    opencode: ctx.opencode,
+    sandboxAgentResolver: ctx.sandboxAgentResolver,
     publisher: ctx.publisher,
     sessionStateStore: ctx.sessionStateStore,
   });
@@ -190,17 +191,16 @@ async function markFailed(
 export async function orchestrate(
   input: OrchestrationInput
 ): Promise<OrchestrationResult> {
-  const { opencode, publisher, sessionStateStore } = input;
+  const { sandboxAgentResolver, publisher, sessionStateStore } = input;
 
   if (input.channelId) {
     const existingSession = await findSessionById(input.channelId);
-    if (existingSession?.opencodeSessionId) {
+    if (existingSession?.sandboxSessionId) {
       await sendMessageToSession({
         sessionId: input.channelId,
-        opencodeSessionId: existingSession.opencodeSessionId,
+        sandboxSessionId: existingSession.sandboxSessionId,
         content: input.content,
-        modelId: input.modelId,
-        opencode,
+        sandboxAgentResolver,
         publisher,
         sessionStateStore,
       });
@@ -233,7 +233,7 @@ export async function orchestrate(
     browserService: input.browserService,
     sessionLifecycle: input.sessionLifecycle,
     poolManager: input.poolManager,
-    opencode,
+    sandboxAgentResolver,
     publisher,
     sessionStateStore,
   };

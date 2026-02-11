@@ -2,7 +2,7 @@ import { type } from "arktype";
 
 export const env = type({
   API_PORT: "string",
-  OPENCODE_URL: "string",
+  ANTHROPIC_API_KEY: "string",
   BROWSER_API_URL: "string",
   BROWSER_WS_URL: "string",
   CONTAINER_SCHEME: "string",
@@ -12,7 +12,6 @@ export const env = type({
   MAX_DAEMON_RETRIES: "string.integer.parse = '3'",
   BROWSER_SOCKET_VOLUME: "string = 'lab_browser_sockets'",
   BROWSER_CONTAINER_NAME: "string",
-  OPENCODE_CONTAINER_NAME: "string",
   PROXY_CONTAINER_NAME: "string",
   PROXY_BASE_URL: "string",
   POOL_SIZE: "string.integer.parse = '0'",

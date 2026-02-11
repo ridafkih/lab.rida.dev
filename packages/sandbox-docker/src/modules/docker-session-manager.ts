@@ -112,22 +112,24 @@ export class DockerSessionManager implements SessionManager {
   }
 
   private async connectSharedContainers(networkId: string): Promise<void> {
-    for (const containerName of this.sharedContainerNames) {
-      try {
-        const connected = await this.provider.isConnectedToNetwork(
-          containerName,
-          networkId
-        );
-        if (!connected) {
-          await this.provider.connectToNetwork(containerName, networkId);
+    await Promise.all(
+      this.sharedContainerNames.map(async (containerName) => {
+        try {
+          const connected = await this.provider.isConnectedToNetwork(
+            containerName,
+            networkId
+          );
+          if (!connected) {
+            await this.provider.connectToNetwork(containerName, networkId);
+          }
+        } catch (error) {
+          console.warn(
+            `[Network] Failed to connect shared container ${containerName} to network ${networkId}:`,
+            error
+          );
         }
-      } catch (error) {
-        console.warn(
-          `[Network] Failed to connect shared container ${containerName} to network ${networkId}:`,
-          error
-        );
-      }
-    }
+      })
+    );
   }
 
   private async disconnectSharedContainers(networkId: string): Promise<void> {

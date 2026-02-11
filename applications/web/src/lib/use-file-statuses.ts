@@ -2,8 +2,10 @@
 
 import { useEffect } from "react";
 import useSWR, { useSWRConfig } from "swr";
-import { useOpenCodeSession } from "./opencode-session";
-import { createSessionClient } from "./use-session-client";
+import {
+  getAgentApiUrl,
+  useSandboxAgentSession,
+} from "./sandbox-agent-session";
 
 type FileStatus = "added" | "modified" | "deleted";
 
@@ -30,16 +32,33 @@ function normalizePath(path: string): string {
 }
 
 async function fetchFileStatuses(sessionId: string): Promise<ChangedFile[]> {
-  const client = createSessionClient(sessionId);
-  const response = await client.file.status({});
+  const apiUrl = getAgentApiUrl();
+  const response = await fetch(
+    `${apiUrl}/sandbox-agent/files/status?sessionId=${encodeURIComponent(sessionId)}`,
+    {
+      headers: { "X-Lab-Session-Id": sessionId },
+    }
+  );
 
-  if (response.data) {
-    return response.data.map((file) => ({
-      path: normalizePath(file.path),
-      status: file.status,
-      added: file.added,
-      removed: file.removed,
-    }));
+  if (!response.ok) {
+    return [];
+  }
+
+  const data = await response.json();
+  if (Array.isArray(data)) {
+    return data.map(
+      (file: {
+        path: string;
+        status: FileStatus;
+        added: number;
+        removed: number;
+      }) => ({
+        path: normalizePath(file.path),
+        status: file.status,
+        added: file.added,
+        removed: file.removed,
+      })
+    );
   }
 
   return [];
@@ -53,7 +72,7 @@ function getFileStatusesKey(sessionId: string | null): string | null {
 }
 
 export function useFileStatuses(sessionId: string | null) {
-  const { subscribe } = useOpenCodeSession();
+  const { subscribe } = useSandboxAgentSession();
   const { mutate } = useSWRConfig();
 
   const { data, error, isLoading } = useSWR<ChangedFile[]>(

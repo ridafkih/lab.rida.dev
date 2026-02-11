@@ -5,6 +5,7 @@ import { isNotFoundError } from "../utils/error-handling";
 export class DockerImageManager implements ImageManager {
   private readonly docker: Dockerode;
   private readonly modem: Dockerode["modem"];
+  private readonly configCache = new Map<string, ImageConfig>();
 
   constructor(docker: Dockerode) {
     this.docker = docker;
@@ -15,6 +16,8 @@ export class DockerImageManager implements ImageManager {
     imageRef: string,
     onProgress?: (event: { status: string; progress?: string }) => void
   ): Promise<void> {
+    this.configCache.delete(imageRef);
+
     const pullStream = await this.docker.pull(imageRef);
 
     await new Promise<void>((resolve, reject) => {
@@ -50,14 +53,22 @@ export class DockerImageManager implements ImageManager {
   }
 
   async getImageConfig(imageRef: string): Promise<ImageConfig> {
+    const cached = this.configCache.get(imageRef);
+    if (cached) {
+      return cached;
+    }
+
     const imageInfo = await this.docker.getImage(imageRef).inspect();
     const entrypoint = imageInfo.Config.Entrypoint;
 
-    return {
+    const config: ImageConfig = {
       workdir: imageInfo.Config.WorkingDir || "/",
       entrypoint:
         typeof entrypoint === "string" ? [entrypoint] : (entrypoint ?? null),
       cmd: imageInfo.Config.Cmd ?? null,
     };
+
+    this.configCache.set(imageRef, config);
+    return config;
   }
 }

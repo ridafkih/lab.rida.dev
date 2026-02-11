@@ -233,45 +233,40 @@ function TextAreaGroupToolbar({ children }: ToolbarProps) {
   );
 }
 
-interface ModelGroup {
-  provider: string;
-  models: { label: string; value: string }[];
-}
-
 interface ModelSelectorProps {
   value: string;
-  groups: ModelGroup[];
+  models: { label: string; value: string }[];
   onChange: (value: string) => void;
+  disabled?: boolean;
 }
 
 function TextAreaGroupModelSelector({
   value,
-  groups,
+  models,
   onChange,
+  disabled,
 }: ModelSelectorProps) {
   return (
     <div className="relative">
       <select
-        className="cursor-pointer appearance-none bg-transparent pr-1 text-text-secondary text-xs focus:outline-none"
+        className={cn(
+          "appearance-none bg-transparent pr-1 text-xs focus:outline-none",
+          disabled
+            ? "cursor-default text-text-muted"
+            : "cursor-pointer text-text-secondary"
+        )}
+        disabled={disabled}
         onChange={(event) => onChange(event.target.value)}
         value={value}
       >
-        {groups.map((group) => (
-          <optgroup
+        {models.map((model) => (
+          <option
             className="bg-bg text-text"
-            key={group.provider}
-            label={group.provider}
+            key={model.value}
+            value={model.value}
           >
-            {group.models.map((model) => (
-              <option
-                className="bg-bg text-text"
-                key={model.value}
-                value={model.value}
-              >
-                {model.label}
-              </option>
-            ))}
-          </optgroup>
+            {model.label}
+          </option>
         ))}
       </select>
       <ChevronDown

@@ -1,8 +1,7 @@
 import type { LanguageModel } from "ai";
 
 export interface ImageAnalyzerConfig {
-  /** Model provider: "anthropic" or "openai" */
-  provider: "anthropic" | "openai";
+  provider: "anthropic" | "openai" | "moonshotai";
   /** Model name (e.g., "claude-3-haiku-20240307", "gpt-4o-mini") */
   model: string;
   /** API key for the provider */

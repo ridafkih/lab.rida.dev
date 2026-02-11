@@ -1,4 +1,4 @@
-import { pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import { integer, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
 import { projects } from "./projects";
 
 export const sessions = pgTable("sessions", {
@@ -7,7 +7,9 @@ export const sessions = pgTable("sessions", {
     .notNull()
     .references(() => projects.id, { onDelete: "cascade" }),
   title: text("title"),
-  opencodeSessionId: text("opencode_session_id"),
+  sandboxSessionId: text("sandbox_session_id"),
+  sandboxAgentPort: integer("sandbox_agent_port"),
+  sandboxAgentContainerId: text("sandbox_agent_container_id"),
   workspaceDirectory: text("workspace_directory"),
   status: text("status").notNull().default("running"),
   createdAt: timestamp("created_at", { withTimezone: true })

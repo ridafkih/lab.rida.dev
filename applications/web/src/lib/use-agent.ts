@@ -1,26 +1,20 @@
 "use client";
 
-import type {
-  AssistantMessage,
-  Message,
-  Part,
-} from "@opencode-ai/sdk/v2/client";
 import { useEffect, useRef, useState } from "react";
 import useSWR, { useSWRConfig } from "swr";
 import { api } from "./api";
-import { type Event, useOpenCodeSession } from "./opencode-session";
+import {
+  getAgentApiUrl,
+  parseSSEChunk,
+  useSandboxAgentSession,
+} from "./sandbox-agent-session";
+import type { ContentPart, SandboxAgentEvent } from "./sandbox-agent-types";
 import type { Attachment } from "./use-attachments";
-import { createSessionClient, useSessionClient } from "./use-session-client";
-
-interface LoadedMessage {
-  info: Message;
-  parts: Part[];
-}
 
 export interface MessageState {
   id: string;
   role: "user" | "assistant";
-  parts: Part[];
+  parts: ContentPart[];
 }
 
 interface SendMessageOptions {
@@ -52,260 +46,395 @@ interface UseAgentResult {
 }
 
 interface SessionData {
-  opencodeSessionId: string;
+  sandboxSessionId: string;
   messages: MessageState[];
+  lastSequence: number;
 }
 
-function parseLoadedMessages(data: LoadedMessage[]): MessageState[] {
-  return data.map((message) => ({
-    id: message.info.id,
-    role: message.info.role,
-    parts: message.parts,
-  }));
+function getString(value: unknown, fallback = ""): string {
+  return typeof value === "string" ? value : fallback;
 }
 
-function getSessionIdFromEvent(event: Event): string | undefined {
-  if (!("properties" in event)) {
-    return undefined;
+function extractEventItem(
+  eventData: Record<string, unknown>
+): Record<string, unknown> {
+  if (typeof eventData.item === "object" && eventData.item !== null) {
+    return eventData.item as Record<string, unknown>;
   }
-
-  const properties = event.properties;
-
-  if ("sessionID" in properties && typeof properties.sessionID === "string") {
-    return properties.sessionID;
-  }
-
-  if (
-    "info" in properties &&
-    typeof properties.info === "object" &&
-    properties.info !== null
-  ) {
-    const info = properties.info;
-    if ("sessionID" in info && typeof info.sessionID === "string") {
-      return info.sessionID;
-    }
-  }
-
-  if (
-    "part" in properties &&
-    typeof properties.part === "object" &&
-    properties.part !== null
-  ) {
-    const part = properties.part;
-    if ("sessionID" in part && typeof part.sessionID === "string") {
-      return part.sessionID;
-    }
-  }
-
-  return undefined;
+  return eventData;
 }
 
-function sortPartsById(parts: Part[]): Part[] {
-  return parts.toSorted((partA, partB) => partA.id.localeCompare(partB.id));
+function extractItemId(
+  item: Record<string, unknown>,
+  fallback: string
+): string {
+  return typeof item.item_id === "string" ? item.item_id : fallback;
 }
 
-function upsertPart(parts: Part[], part: Part): Part[] {
-  const existingIndex = parts.findIndex((existing) => existing.id === part.id);
-  if (existingIndex === -1) {
-    return [...parts, part];
+function extractContentParts(
+  item: Record<string, unknown>
+): Record<string, unknown>[] {
+  return Array.isArray(item.content) ? item.content : [];
+}
+
+function tryParseJson(value: string): Record<string, unknown> {
+  try {
+    return JSON.parse(value);
+  } catch (error) {
+    console.warn("Failed to parse tool arguments:", error);
+    return {};
   }
-  return parts.map((existing, index) =>
-    index === existingIndex ? part : existing
+}
+
+const TOOL_CALL_STATUSES = ["in_progress", "completed", "error"] as const;
+type ToolCallStatus = (typeof TOOL_CALL_STATUSES)[number];
+
+function isToolCallStatus(value: unknown): value is ToolCallStatus {
+  return (
+    typeof value === "string" &&
+    TOOL_CALL_STATUSES.includes(value as ToolCallStatus)
   );
 }
 
-interface PendingQuestion {
-  callID: string;
-  requestID: string;
-}
-
-function extractPendingQuestion(question: unknown): PendingQuestion | null {
-  if (typeof question !== "object" || question === null) {
-    return null;
+function normalizeToolCall(raw: Record<string, unknown>): ContentPart {
+  let input: Record<string, unknown> = {};
+  if (typeof raw.arguments === "string") {
+    input = tryParseJson(raw.arguments);
+  } else if (typeof raw.input === "object" && raw.input !== null) {
+    input = raw.input as Record<string, unknown>;
   }
-
-  if (!("id" in question) || typeof question.id !== "string") {
-    return null;
-  }
-
-  if (
-    !("tool" in question) ||
-    typeof question.tool !== "object" ||
-    question.tool === null
-  ) {
-    return null;
-  }
-
-  if (
-    !("callID" in question.tool) ||
-    typeof question.tool.callID !== "string"
-  ) {
-    return null;
-  }
-
-  return { callID: question.tool.callID, requestID: question.id };
-}
-
-function extractQuestionAskedEvent(
-  event: Event
-): { callID: string; requestID: string } | null {
-  if (!("properties" in event)) {
-    return null;
-  }
-  const properties = event.properties;
-  if (typeof properties !== "object" || properties === null) {
-    return null;
-  }
-  if (!("callID" in properties) || typeof properties.callID !== "string") {
-    return null;
-  }
-  if (
-    !("requestID" in properties) ||
-    typeof properties.requestID !== "string"
-  ) {
-    return null;
-  }
-  return { callID: properties.callID, requestID: properties.requestID };
-}
-
-function extractQuestionCallID(event: Event): string | null {
-  if (!("properties" in event)) {
-    return null;
-  }
-  const properties = event.properties;
-  if (typeof properties !== "object" || properties === null) {
-    return null;
-  }
-  if (!("callID" in properties) || typeof properties.callID !== "string") {
-    return null;
-  }
-  return properties.callID;
-}
-
-interface MessageError {
-  message: string;
-  isRetryable: boolean;
-  statusCode?: number;
-}
-
-function extractMessageError(info: Message): MessageError | null {
-  if (info.role !== "assistant") {
-    return null;
-  }
-  const assistantMessage = info as AssistantMessage;
-  if (!assistantMessage.error) {
-    return null;
-  }
-
-  const error = assistantMessage.error;
-  const message =
-    "message" in error.data && typeof error.data.message === "string"
-      ? error.data.message
-      : "An error occurred";
-
   return {
-    message,
-    isRetryable: error.name === "APIError" ? error.data.isRetryable : true,
-    statusCode: error.name === "APIError" ? error.data.statusCode : undefined,
+    type: "tool_call" as const,
+    id: getString(raw.call_id ?? raw.id),
+    name: getString(raw.name),
+    input,
+    status: isToolCallStatus(raw.status) ? raw.status : "in_progress",
   };
 }
 
-async function fetchPendingQuestions(
+function normalizeToolResult(raw: Record<string, unknown>): ContentPart {
+  return {
+    type: "tool_result" as const,
+    tool_call_id: getString(raw.call_id ?? raw.tool_call_id),
+    output: typeof raw.output === "string" ? raw.output : undefined,
+    error: typeof raw.error === "string" ? raw.error : undefined,
+  };
+}
+
+function normalizeTextPart(raw: Record<string, unknown>): ContentPart {
+  return { type: "text" as const, text: getString(raw.text) };
+}
+
+function normalizeSinglePart(raw: Record<string, unknown>): ContentPart {
+  const type = getString(raw.type);
+  if (type === "tool_call") {
+    return normalizeToolCall(raw);
+  }
+  if (type === "tool_result") {
+    return normalizeToolResult(raw);
+  }
+  if (type === "text") {
+    return normalizeTextPart(raw);
+  }
+  return { type: "text" as const, text: "" };
+}
+
+/**
+ * Normalize raw content parts from Sandbox Agent events into the ContentPart
+ * types expected by the frontend. Sandbox Agent uses `call_id` and `arguments`
+ * (JSON string) while our types use `id` and `input` (parsed object).
+ */
+function normalizeContentParts(
+  rawParts: Record<string, unknown>[]
+): ContentPart[] {
+  return rawParts.map(normalizeSinglePart);
+}
+
+/**
+ * Mark tool_call parts as "completed" or "error" when a matching tool_result
+ * exists in the same message.
+ */
+function resolveToolCallStatuses(parts: ContentPart[]): ContentPart[] {
+  const resultsByCallId = new Map<
+    string,
+    { output?: string; error?: string }
+  >();
+  for (const part of parts) {
+    if (part.type === "tool_result" && "tool_call_id" in part) {
+      resultsByCallId.set(part.tool_call_id, {
+        output: part.output,
+        error: part.error,
+      });
+    }
+  }
+
+  if (resultsByCallId.size === 0) {
+    return parts;
+  }
+
+  return parts.map((part) => {
+    if (part.type === "tool_call" && part.status === "in_progress") {
+      const result = resultsByCallId.get(part.id);
+      if (result) {
+        return {
+          ...part,
+          status: result.error ? ("error" as const) : ("completed" as const),
+        };
+      }
+    }
+    return part;
+  });
+}
+
+/**
+ * Determines whether a Sandbox Agent item should be merged into the current
+ * assistant message (tool calls, tool results) or create a new message.
+ */
+function shouldMergeItem(item: Record<string, unknown>): boolean {
+  return (
+    item.kind === "tool_call" ||
+    item.kind === "tool_result" ||
+    item.role === "tool"
+  );
+}
+
+function handleReplayItemStarted(
+  event: SandboxAgentEvent,
+  messages: MessageState[],
+  itemIdToMessageId: Map<string, string>,
+  currentAssistantId: { value: string | null }
+): void {
+  const item = extractEventItem(event.data);
+  const role =
+    item.role === "user" ? ("user" as const) : ("assistant" as const);
+  const itemId = extractItemId(item, `item-${event.sequence}`);
+  const content = normalizeContentParts(extractContentParts(item));
+
+  if (role === "user") {
+    messages.push({ id: itemId, role, parts: content });
+    itemIdToMessageId.set(itemId, itemId);
+    return;
+  }
+
+  if (shouldMergeItem(item) && currentAssistantId.value) {
+    itemIdToMessageId.set(itemId, currentAssistantId.value);
+    const assistantMsg = messages.find(
+      (m) => m.id === currentAssistantId.value
+    );
+    if (assistantMsg && content.length > 0) {
+      assistantMsg.parts = [...assistantMsg.parts, ...content];
+    }
+    return;
+  }
+
+  messages.push({ id: itemId, role, parts: content });
+  itemIdToMessageId.set(itemId, itemId);
+  currentAssistantId.value = itemId;
+}
+
+function handleReplayItemDelta(
+  event: SandboxAgentEvent,
+  messages: MessageState[],
+  itemIdToMessageId: Map<string, string>
+): void {
+  const rawItemId = getString(event.data.item_id) || null;
+  const deltaText = getString(event.data.delta) || null;
+
+  if (!(rawItemId && deltaText)) {
+    return;
+  }
+
+  const messageId = itemIdToMessageId.get(rawItemId) ?? rawItemId;
+  const message = messages.find((m) => m.id === messageId);
+  if (!message) {
+    return;
+  }
+
+  const lastPart = message.parts.at(-1);
+  if (lastPart && lastPart.type === "text") {
+    lastPart.text += deltaText;
+  } else {
+    message.parts.push({ type: "text", text: deltaText });
+  }
+}
+
+function handleReplayItemCompleted(
+  event: SandboxAgentEvent,
+  messages: MessageState[],
+  itemIdToMessageId: Map<string, string>
+): void {
+  const item = extractEventItem(event.data);
+  const rawItemId = getString(item.item_id) || null;
+  const content = normalizeContentParts(extractContentParts(item));
+
+  if (!rawItemId || content.length === 0) {
+    return;
+  }
+
+  const messageId = itemIdToMessageId.get(rawItemId) ?? rawItemId;
+  const message = messages.find((m) => m.id === messageId);
+  if (!message) {
+    return;
+  }
+
+  if (messageId === rawItemId) {
+    if (message.parts.length === 0) {
+      message.parts = [...content];
+    }
+  } else {
+    message.parts = [...message.parts, ...content];
+  }
+}
+
+function reconstructMessagesFromEvents(
+  events: SandboxAgentEvent[]
+): MessageState[] {
+  const messages: MessageState[] = [];
+  const itemIdToMessageId = new Map<string, string>();
+  const currentAssistantId = { value: null as string | null };
+
+  for (const event of events) {
+    switch (event.type) {
+      case "item.started":
+        handleReplayItemStarted(
+          event,
+          messages,
+          itemIdToMessageId,
+          currentAssistantId
+        );
+        break;
+      case "item.delta":
+        handleReplayItemDelta(event, messages, itemIdToMessageId);
+        break;
+      case "item.completed":
+        handleReplayItemCompleted(event, messages, itemIdToMessageId);
+        break;
+      default:
+        break;
+    }
+  }
+
+  for (const message of messages) {
+    message.parts = resolveToolCallStatuses(message.parts);
+  }
+
+  return messages;
+}
+
+async function fetchSessionEvents(
   labSessionId: string
-): Promise<PendingQuestion[]> {
-  const client = createSessionClient(labSessionId);
-  const response = await client.question.list();
-  if (response.error || !response.data) {
+): Promise<SandboxAgentEvent[]> {
+  const apiUrl = getAgentApiUrl();
+  const response = await fetch(`${apiUrl}/sandbox-agent/events?replay=true`, {
+    headers: {
+      Accept: "application/json",
+      "X-Lab-Session-Id": labSessionId,
+    },
+  });
+
+  if (!response.ok) {
     return [];
   }
 
-  const pendingQuestions: PendingQuestion[] = [];
-  for (const question of response.data) {
-    const extracted = extractPendingQuestion(question);
-    if (extracted) {
-      pendingQuestions.push(extracted);
-    }
+  return response.json();
+}
+
+function getPreferredModel(): string | null {
+  try {
+    const stored = localStorage.getItem("preferred-model");
+    return stored ? JSON.parse(stored) : null;
+  } catch {
+    return null;
   }
-  return pendingQuestions;
 }
 
 async function fetchSessionData(
   labSessionId: string
 ): Promise<SessionData | null> {
-  const client = createSessionClient(labSessionId);
   const labSession = await api.sessions.get(labSessionId);
 
-  let opencodeSessionId = labSession.opencodeSessionId;
+  let sandboxSessionId = labSession.sandboxSessionId;
 
-  if (!opencodeSessionId) {
-    const response = await client.session.create({});
-    if (response.error || !response.data) {
-      throw new Error("Failed to create OpenCode session");
+  if (!sandboxSessionId) {
+    const apiUrl = getAgentApiUrl();
+    const preferredModel = getPreferredModel();
+    const body: Record<string, string> = {};
+    if (preferredModel) {
+      body.model = preferredModel;
     }
-    opencodeSessionId = response.data.id;
+    const response = await fetch(`${apiUrl}/sandbox-agent/sessions`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Lab-Session-Id": labSessionId,
+      },
+      body: JSON.stringify(body),
+    });
+
+    if (!response.ok) {
+      throw new Error("Failed to create sandbox agent session");
+    }
+
+    const data = await response.json();
+    sandboxSessionId = data.id;
   }
 
-  const messagesResponse = await client.session.messages({
-    sessionID: opencodeSessionId,
-  });
-
-  if (messagesResponse.error) {
-    throw new Error(
-      `Failed to fetch messages: ${JSON.stringify(messagesResponse.error)}`
-    );
+  if (!sandboxSessionId) {
+    return { sandboxSessionId: "", messages: [], lastSequence: 0 };
   }
 
-  return {
-    opencodeSessionId,
-    messages: parseLoadedMessages(messagesResponse.data ?? []),
-  };
+  const events = await fetchSessionEvents(labSessionId);
+  const messages = reconstructMessagesFromEvents(events);
+  const lastSequence = events.reduce((max, e) => Math.max(max, e.sequence), 0);
+
+  return { sandboxSessionId, messages, lastSequence };
+}
+
+async function readSSEStream(
+  response: Response,
+  onEvent: (event: SandboxAgentEvent) => void
+): Promise<void> {
+  const body = response.body;
+  if (!body) {
+    return;
+  }
+
+  const reader = body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) {
+        break;
+      }
+
+      buffer += decoder.decode(value, { stream: true });
+      const chunks = buffer.split("\n\n");
+      buffer = chunks.pop() ?? "";
+
+      for (const chunk of chunks) {
+        if (!chunk.trim()) {
+          continue;
+        }
+        const event = parseSSEChunk(chunk);
+        if (event) {
+          onEvent(event);
+        }
+      }
+    }
+  } finally {
+    reader.releaseLock();
+  }
 }
 
 function getAgentMessagesKey(labSessionId: string): string {
   return `agent-messages-${labSessionId}`;
 }
 
-interface TextPart {
-  type: "text";
-  text: string;
-}
-interface FilePart {
-  type: "file";
-  mime: string;
-  url: string;
-  filename: string;
-}
-type MessagePart = TextPart | FilePart;
-
-function attachmentToFilePart(attachment: Attachment): FilePart {
-  return {
-    type: "file",
-    mime: attachment.file.type,
-    url: attachment.preview,
-    filename: attachment.file.name,
-  };
-}
-
-function buildMessageParts(
-  content: string,
-  attachments?: Attachment[]
-): MessagePart[] {
-  const parts: MessagePart[] = [];
-
-  if (content.trim().length > 0) {
-    parts.push({ type: "text", text: content });
-  }
-
-  if (attachments && attachments.length > 0) {
-    const fileParts = attachments.map(attachmentToFilePart);
-    parts.push(...fileParts);
-  }
-
-  return parts;
-}
-
 export function useAgent(labSessionId: string): UseAgentResult {
-  const { subscribe } = useOpenCodeSession();
+  const { publish } = useSandboxAgentSession();
   const { mutate } = useSWRConfig();
   const [streamedMessages, setStreamedMessages] = useState<
     MessageState[] | null
@@ -318,11 +447,11 @@ export function useAgent(labSessionId: string): UseAgentResult {
   const [questionRequests, setQuestionRequests] = useState<Map<string, string>>(
     () => new Map()
   );
-  const currentOpencodeSessionRef = useRef<string | null>(null);
   const sendingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const streamedMessagesRef = useRef<MessageState[] | null>(null);
   const sessionDataRef = useRef<SessionData | null>(null);
-  const opencodeClient = useSessionClient(labSessionId);
+  const itemToMessageRef = useRef<Map<string, string>>(new Map());
+  const currentAssistantIdRef = useRef<string | null>(null);
 
   const isOptimistic = labSessionId === "new";
 
@@ -335,16 +464,8 @@ export function useAgent(labSessionId: string): UseAgentResult {
     () => fetchSessionData(labSessionId)
   );
 
-  const { data: pendingQuestions } = useSWR(
-    labSessionId && !isOptimistic ? `pending-questions-${labSessionId}` : null,
-    () => fetchPendingQuestions(labSessionId)
-  );
-
   useEffect(() => {
     sessionDataRef.current = sessionData ?? null;
-    if (sessionData?.opencodeSessionId) {
-      currentOpencodeSessionRef.current = sessionData.opencodeSessionId;
-    }
     streamedMessagesRef.current = streamedMessages;
     if (swrError) {
       setError(
@@ -353,63 +474,130 @@ export function useAgent(labSessionId: string): UseAgentResult {
     }
   }, [sessionData, streamedMessages, swrError]);
 
-  useEffect(() => {
-    if (pendingQuestions && pendingQuestions.length > 0) {
-      setQuestionRequests(
-        new Map(
-          pendingQuestions.map((question) => [
-            question.callID,
-            question.requestID,
-          ])
-        )
-      );
-    }
-  }, [pendingQuestions]);
-
   const messages = streamedMessages ?? sessionData?.messages ?? [];
-  const opencodeSessionId = sessionData?.opencodeSessionId ?? null;
+  const sandboxSessionId = sessionData?.sandboxSessionId ?? null;
+  const lastSequence = sessionData?.lastSequence ?? 0;
 
+  // SSE connection — connects once after replay data loads
   useEffect(() => {
-    if (!opencodeSessionId) {
+    if (!sandboxSessionId) {
       return;
     }
 
-    const handleMessageUpdated = (info: Message) => {
+    const abortController = new AbortController();
+    const { signal } = abortController;
+
+    const apiUrl = getAgentApiUrl();
+    const params = new URLSearchParams({ sessionId: labSessionId });
+    const offset = lastSequence;
+    if (offset > 0) {
+      params.set("offset", String(offset));
+    }
+
+    const eventsUrl = `${apiUrl}/sandbox-agent/events?${params}`;
+
+    const seenSequences = new Set<number>();
+
+    const handleItemStarted = (event: SandboxAgentEvent) => {
+      const item = extractEventItem(event.data);
+      const role =
+        item.role === "user" ? ("user" as const) : ("assistant" as const);
+      const itemId = extractItemId(item, `item-${event.sequence}`);
+
+      if (role === "user") {
+        itemToMessageRef.current.set(itemId, itemId);
+        setStreamedMessages((previous) => {
+          const base = previous ?? sessionDataRef.current?.messages ?? [];
+          return [...base, { id: itemId, role, parts: [] }];
+        });
+        return;
+      }
+
+      if (shouldMergeItem(item) && currentAssistantIdRef.current) {
+        itemToMessageRef.current.set(itemId, currentAssistantIdRef.current);
+        return;
+      }
+
+      currentAssistantIdRef.current = itemId;
+      itemToMessageRef.current.set(itemId, itemId);
       setStreamedMessages((previous) => {
         const base = previous ?? sessionDataRef.current?.messages ?? [];
-        const existing = base.find((message) => message.id === info.id);
+        const existing = base.find((message) => message.id === itemId);
         if (existing) {
           return base;
         }
-        return [...base, { id: info.id, role: info.role, parts: [] }];
+        return [...base, { id: itemId, role, parts: [] }];
       });
-
-      const messageError = extractMessageError(info);
-      if (messageError) {
-        setSessionStatus({
-          type: "error",
-          message: messageError.message,
-          isRetryable: messageError.isRetryable,
-          statusCode: messageError.statusCode,
-        });
-        setIsSending(false);
-        if (sendingTimeoutRef.current) {
-          clearTimeout(sendingTimeoutRef.current);
-          sendingTimeoutRef.current = null;
-        }
-      }
     };
 
-    const handleMessagePartUpdated = (part: Part) => {
+    const handleItemDelta = (event: SandboxAgentEvent) => {
+      const rawItemId = getString(event.data.item_id) || null;
+      const deltaText = getString(event.data.delta) || null;
+
+      if (!(rawItemId && deltaText)) {
+        return;
+      }
+
+      const messageId = itemToMessageRef.current.get(rawItemId) ?? rawItemId;
+
       setStreamedMessages((previous) => {
         const base = previous ?? sessionDataRef.current?.messages ?? [];
         return base.map((message) => {
-          if (message.id !== part.messageID) {
+          if (message.id !== messageId) {
             return message;
           }
+
+          const updatedParts = [...message.parts];
+          const lastIndex = updatedParts.length - 1;
+          const lastPart = updatedParts.at(-1);
+
+          if (lastPart && lastPart.type === "text") {
+            updatedParts[lastIndex] = {
+              ...lastPart,
+              text: lastPart.text + deltaText,
+            };
+          } else {
+            updatedParts.push({ type: "text", text: deltaText });
+          }
+
+          return { ...message, parts: updatedParts };
+        });
+      });
+    };
+
+    const handleItemCompleted = (event: SandboxAgentEvent) => {
+      const item = extractEventItem(event.data);
+      const itemId = getString(item.item_id) || null;
+      const content = normalizeContentParts(extractContentParts(item));
+
+      if (!itemId || content.length === 0) {
+        return;
+      }
+
+      const messageId = itemToMessageRef.current.get(itemId) ?? itemId;
+
+      setStreamedMessages((previous) => {
+        const base = previous ?? sessionDataRef.current?.messages ?? [];
+        return base.map((message) => {
+          if (message.id !== messageId) {
+            return message;
+          }
+          if (messageId === itemId) {
+            if (message.parts.length > 0) {
+              return {
+                ...message,
+                parts: resolveToolCallStatuses(message.parts),
+              };
+            }
+            return {
+              ...message,
+              parts: resolveToolCallStatuses([...content]),
+            };
+          }
+          const newParts = [...message.parts, ...content];
           return {
             ...message,
-            parts: sortPartsById(upsertPart(message.parts, part)),
+            parts: resolveToolCallStatuses(newParts),
           };
         });
       });
@@ -422,7 +610,7 @@ export function useAgent(labSessionId: string): UseAgentResult {
       }
     };
 
-    const handleSessionIdle = () => {
+    const handleTurnEnded = () => {
       clearSendingTimeout();
       setIsSending(false);
       setSessionStatus({ type: "idle" });
@@ -442,79 +630,73 @@ export function useAgent(labSessionId: string): UseAgentResult {
           { revalidate: false }
         );
       }
-      setStreamedMessages(null);
     };
 
-    const handleQuestionAsked = (event: Event) => {
-      const extracted = extractQuestionAskedEvent(event);
-      if (extracted) {
+    const handleTurnStarted = () => {
+      setSessionStatus({ type: "busy" });
+    };
+
+    const handleError = (event: SandboxAgentEvent) => {
+      clearSendingTimeout();
+      setIsSending(false);
+      const message =
+        typeof event.data.message === "string"
+          ? event.data.message
+          : "An error occurred";
+      setSessionStatus({ type: "error", message });
+    };
+
+    const handleQuestionRequested = (event: SandboxAgentEvent) => {
+      const questionId = getString(event.data.id) || null;
+      const callId = getString(event.data.call_id) || null;
+      if (questionId && callId) {
         setQuestionRequests((previous) =>
-          new Map(previous).set(extracted.callID, extracted.requestID)
+          new Map(previous).set(callId, questionId)
         );
       }
     };
 
-    const handleQuestionResolved = (event: Event) => {
-      const callID = extractQuestionCallID(event);
-      if (callID) {
+    const handleQuestionResolved = (event: SandboxAgentEvent) => {
+      const callId = getString(event.data.call_id) || null;
+      if (callId) {
         setQuestionRequests((previous) => {
           const next = new Map(previous);
-          next.delete(callID);
+          next.delete(callId);
           return next;
         });
       }
     };
 
-    const isForCurrentSession = (event: Event): boolean => {
-      const sessionSpecificEvents = [
-        "message.updated",
-        "message.part.updated",
-        "session.idle",
-        "session.error",
-        "session.status",
-        "question.asked",
-        "question.replied",
-        "question.rejected",
-      ];
-
-      if (!sessionSpecificEvents.includes(event.type)) {
-        return true;
-      }
-      return getSessionIdFromEvent(event) === currentOpencodeSessionRef.current;
-    };
-
-    const handleSessionError = () => {
-      clearSendingTimeout();
-      setIsSending(false);
-      setSessionStatus({ type: "error" });
-    };
-
-    const processEvent = (event: Event) => {
-      if (!isForCurrentSession(event)) {
+    const processEvent = (event: SandboxAgentEvent) => {
+      if (seenSequences.has(event.sequence)) {
         return;
       }
+      seenSequences.add(event.sequence);
+      publish(event);
 
       switch (event.type) {
-        case "message.updated":
-          handleMessageUpdated(event.properties.info);
+        case "turn.started":
+          handleTurnStarted();
           break;
-        case "message.part.updated":
-          handleMessagePartUpdated(event.properties.part);
+        case "turn.ended":
+          handleTurnEnded();
           break;
-        case "session.status":
-          setSessionStatus(event.properties.status);
+        case "item.started":
+          handleItemStarted(event);
           break;
-        case "session.idle":
-          handleSessionIdle();
+        case "item.delta":
+          handleItemDelta(event);
           break;
-        case "session.error":
-          handleSessionError();
+        case "item.completed":
+          handleItemCompleted(event);
           break;
-        case "question.asked":
-          handleQuestionAsked(event);
+        case "error":
+          handleError(event);
           break;
-        case "question.replied":
-        case "question.rejected":
+        case "question.requested":
+          handleQuestionRequested(event);
+          break;
+        case "question.resolved":
           handleQuestionResolved(event);
           break;
         default:
@@ -522,15 +704,46 @@ export function useAgent(labSessionId: string): UseAgentResult {
       }
     };
 
-    return subscribe(processEvent);
-  }, [subscribe, opencodeSessionId, mutate, labSessionId]);
+    const connect = async () => {
+      while (!signal.aborted) {
+        try {
+          const response = await fetch(eventsUrl, {
+            headers: {
+              Accept: "text/event-stream",
+              "X-Lab-Session-Id": labSessionId,
+            },
+            signal,
+          });
+
+          if (!(response.ok && response.body)) {
+            await new Promise((resolve) => setTimeout(resolve, 2000));
+            continue;
+          }
+
+          await readSSEStream(response, processEvent);
+        } catch (error) {
+          if (signal.aborted) {
+            return;
+          }
+          console.warn("SSE connection error, reconnecting:", error);
+          await new Promise((resolve) => setTimeout(resolve, 2000));
+        }
+      }
+    };
+
+    connect();
+
+    return () => {
+      abortController.abort();
+    };
+  }, [sandboxSessionId, labSessionId, lastSequence, mutate, publish]);
 
   const sendMessage = async ({
     content,
     modelId,
-    attachments,
+    attachments: _attachments,
   }: SendMessageOptions) => {
-    if (!(opencodeSessionId && opencodeClient)) {
+    if (!sandboxSessionId) {
       throw new Error("Session not initialized");
     }
 
@@ -550,22 +763,25 @@ export function useAgent(labSessionId: string): UseAgentResult {
     );
 
     try {
-      const [providerID = "", modelID = ""] = modelId?.split("/") ?? [];
-      const parts = buildMessageParts(content, attachments);
-
-      const response = await opencodeClient.session.promptAsync({
-        sessionID: opencodeSessionId,
-        model: {
-          providerID,
-          modelID,
+      const apiUrl = getAgentApiUrl();
+      const body: Record<string, string> = {
+        sessionId: sandboxSessionId,
+        message: content,
+      };
+      if (modelId) {
+        body.model = modelId;
+      }
+      const response = await fetch(`${apiUrl}/sandbox-agent/messages`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Lab-Session-Id": labSessionId,
         },
-        parts,
+        body: JSON.stringify(body),
       });
 
-      if (response.error) {
-        throw new Error(
-          `Failed to send message: ${JSON.stringify(response.error)}`
-        );
+      if (!response.ok) {
+        throw new Error(`Failed to send message: ${response.status}`);
       }
     } catch (error) {
       const errorInstance =
@@ -582,16 +798,22 @@ export function useAgent(labSessionId: string): UseAgentResult {
   };
 
   const abortSession = async () => {
-    if (!(currentOpencodeSessionRef.current && opencodeClient)) {
+    if (!sandboxSessionId) {
       return;
     }
 
     try {
-      await opencodeClient.session.abort({
-        sessionID: currentOpencodeSessionRef.current,
+      const apiUrl = getAgentApiUrl();
+      await fetch(`${apiUrl}/sandbox-agent/sessions`, {
+        method: "DELETE",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Lab-Session-Id": labSessionId,
+        },
+        body: JSON.stringify({ sessionId: sandboxSessionId }),
       });
     } catch (error) {
-      console.warn(error);
+      console.warn("Failed to abort session:", error);
     }
   };
 

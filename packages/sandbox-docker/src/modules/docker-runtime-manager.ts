@@ -52,6 +52,7 @@ export class DockerRuntimeManager implements RuntimeManager {
       })),
       volumes: this.getVolumeBindings(),
       labels: {
+        "com.docker.compose.project": `lab-session-${input.sessionId.slice(0, 8)}`,
         "lab.session": input.sessionId,
         "lab.project": input.projectId,
         "lab.container": input.containerId,
@@ -79,16 +80,6 @@ export class DockerRuntimeManager implements RuntimeManager {
         await this.provider.connectToNetwork(runtimeId, input.networkId, {
           aliases,
         });
-
-        const verifyConnected = await this.provider.isConnectedToNetwork(
-          runtimeId,
-          input.networkId
-        );
-        if (!verifyConnected) {
-          throw new Error(
-            `Failed to connect container ${runtimeId} to network ${input.networkId}`
-          );
-        }
       }
     } catch (networkError) {
       await this.provider

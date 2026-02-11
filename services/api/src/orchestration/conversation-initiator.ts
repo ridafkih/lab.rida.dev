@@ -1,44 +1,17 @@
-import { createDefaultPromptService } from "../prompts/builder";
-import { createPromptContext } from "../prompts/context";
-import { getProjectSystemPrompt } from "../repositories/project.repository";
-import {
-  findSessionById,
-  updateSessionFields,
-} from "../repositories/session.repository";
-import { ExternalServiceError, throwOnOpencodeError } from "../shared/errors";
+import { updateSessionFields } from "../repositories/session.repository";
+import type { SandboxAgentClientResolver } from "../sandbox-agent/client-resolver";
+import { ExternalServiceError } from "../shared/errors";
 import { resolveWorkspacePathBySession } from "../shared/path-resolver";
 import type { SessionStateStore } from "../state/session-state-store";
-import type { OpencodeClient, Publisher } from "../types/dependencies";
+import type { Publisher } from "../types/dependencies";
 
 interface InitiateConversationOptions {
   sessionId: string;
   task: string;
   modelId?: string;
-  opencode: OpencodeClient;
+  sandboxAgentResolver: SandboxAgentClientResolver;
   publisher: Publisher;
   sessionStateStore: SessionStateStore;
-}
-
-async function composeSystemPrompt(
-  sessionId: string
-): Promise<string | undefined> {
-  const session = await findSessionById(sessionId);
-  if (!session) {
-    return undefined;
-  }
-
-  const projectSystemPrompt = await getProjectSystemPrompt(session.projectId);
-
-  const promptContext = createPromptContext({
-    sessionId,
-    projectId: session.projectId,
-    projectSystemPrompt,
-  });
-
-  const promptService = createDefaultPromptService();
-  const { text } = promptService.compose(promptContext);
-
-  return text || undefined;
 }
 
 function getDefaultModelId(): string | undefined {
@@ -48,43 +21,45 @@ function getDefaultModelId(): string | undefined {
 export async function initiateConversation(
   options: InitiateConversationOptions
 ): Promise<void> {
-  const { sessionId, task, opencode, publisher, sessionStateStore } = options;
+  const {
+    sessionId,
+    task,
+    sandboxAgentResolver,
+    publisher,
+    sessionStateStore,
+  } = options;
   const modelId = options.modelId ?? getDefaultModelId();
   const workspacePath = await resolveWorkspacePathBySession(sessionId);
 
-  const createResponse = await opencode.session.create({
-    directory: workspacePath,
-  });
-  if (createResponse.error || !createResponse.data) {
+  const sandboxSessionId = crypto.randomUUID();
+  const sandboxAgent = await sandboxAgentResolver.getClient(sessionId);
+
+  try {
+    await sandboxAgent.createSession(sandboxSessionId, {
+      agent: "claude",
+      model: modelId,
+      permissionMode: "acceptEdits",
+    });
+  } catch (error) {
     throw new ExternalServiceError(
-      `Failed to create OpenCode session: ${JSON.stringify(createResponse.error)}`,
-      "OPENCODE_SESSION_CREATE_FAILED"
+      `Failed to create Sandbox Agent session: ${error instanceof Error ? error.message : String(error)}`,
+      "SANDBOX_AGENT_SESSION_CREATE_FAILED"
     );
   }
 
-  const opencodeSessionId = createResponse.data.id;
   await updateSessionFields(sessionId, {
-    opencodeSessionId,
+    sandboxSessionId,
     workspaceDirectory: workspacePath,
   });
 
-  const [providerID, modelID] = modelId?.split("/") ?? [];
-  const system = await composeSystemPrompt(sessionId);
-
-  const promptResponse = await opencode.session.promptAsync({
-    sessionID: opencodeSessionId,
-    directory: workspacePath,
-    model: providerID && modelID ? { providerID, modelID } : undefined,
-    parts: [{ type: "text", text: task }],
-    system,
-    tools: { question: false, bash: false },
-  });
-
-  throwOnOpencodeError(
-    promptResponse,
-    "Failed to send initial message",
-    "OPENCODE_INITIAL_PROMPT_FAILED"
-  );
+  try {
+    await sandboxAgent.postMessage(sandboxSessionId, task);
+  } catch (error) {
+    throw new ExternalServiceError(
+      `Failed to send initial message: ${error instanceof Error ? error.message : String(error)}`,
+      "SANDBOX_AGENT_INITIAL_PROMPT_FAILED"
+    );
+  }
 
   await sessionStateStore.setLastMessage(sessionId, task);
   publisher.publishDelta(
