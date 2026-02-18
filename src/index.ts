@@ -46,3 +46,6 @@ async function entry<EnvType extends Type>(
 }
 
 export { entry };
+
+// biome-ignore lint/performance/noBarrelFile: This is valid as to prevent the need for a peer dependency
+export { type } from "arktype";
