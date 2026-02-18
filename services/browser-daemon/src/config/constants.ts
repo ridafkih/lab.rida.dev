@@ -1,5 +1,0 @@
-export const TIMING = {
-  IDLE_TIMEOUT_SECONDS: 30,
-  SSE_PING_INTERVAL_MS: 5000,
-  COMMAND_TIMEOUT_MS: 30_000,
-} as const;

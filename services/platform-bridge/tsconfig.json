@@ -1,9 +1,0 @@
-{
-  "extends": "@lab/typescript-config/bun.json",
-  "compilerOptions": {
-    "target": "ES2022",
-    "module": "ESNext",
-    "strictNullChecks": true
-  },
-  "include": ["src/**/*"]
-}

@@ -1,7 +1,0 @@
-{
-  "extends": "@lab/typescript-config/bun.json",
-  "include": ["src/**/*"],
-  "compilerOptions": {
-    "strictNullChecks": true
-  }
-}
